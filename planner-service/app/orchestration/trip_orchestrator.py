@@ -12,7 +12,10 @@ ARCHITECTURE RULES (enforced here):
 """
 
 import asyncio
+import hashlib
+import json
 import logging
+import time
 from typing import Optional
 
 from app.interfaces.hotel import HotelProvider
@@ -35,15 +38,7 @@ logger = logging.getLogger(__name__)
 class TripOrchestrator:
     """
     Coordinates concurrent data collection from all registered providers.
-
-    Constructor injection makes this unit-testable — pass mock providers
-    in tests without touching the HTTP layer.
-
-    To add a new provider (e.g. RestaurantProvider):
-      1. Add it as a constructor argument with a default of None.
-      2. Add a gather call in _collect().
-      3. Populate the new field on TripContext.
-      → Zero changes to existing gather calls or schema contracts.
+    Uses an in-memory TTL cache to return repeated queries instantly.
     """
 
     def __init__(
@@ -53,20 +48,47 @@ class TripOrchestrator:
         buses:    BusProvider,
         trains:   TrainProvider,
         route:    RouteProvider,
-        # Future: restaurants: Optional[RestaurantProvider] = None,
-        # Future: flights:     Optional[FlightProvider]     = None,
     ):
         self._tourism = tourism
         self._hotels  = hotels
         self._buses   = buses
         self._trains  = trains
         self._route   = route
+        
+        # Simple TTL Cache: { "request_hash": (expiry_timestamp, TripContext) }
+        self._cache: dict[str, tuple[float, TripContext]] = {}
+        self._cache_ttl_seconds = 900  # 15 minutes
+
+    def _get_cache_key(self, trip: TripRequest) -> str:
+        """Hash the TripRequest deterministically to use as a cache key."""
+        trip_dict = trip.model_dump(mode="json")
+        trip_json = json.dumps(trip_dict, sort_keys=True)
+        return hashlib.sha256(trip_json.encode("utf-8")).hexdigest()
 
     async def build_context(self, trip: TripRequest) -> TripContext:
         """
         Resolve parameters, gather all service data concurrently,
-        and assemble a TripContext.
+        and assemble a TripContext. Uses TTL caching for extreme speed.
         """
+        cache_key = self._get_cache_key(trip)
+        now = time.time()
+        
+        logger.info(f"Cache key: {cache_key}")
+        logger.info(f"Current cache size: {len(self._cache)}")
+        logger.info(f"Keys in cache: {list(self._cache.keys())}")
+        
+        # Check cache
+        if cache_key in self._cache:
+            expiry, cached_context = self._cache[cache_key]
+            if now < expiry:
+                logger.info("TripOrchestrator cache hit! Returning instantly.")
+                return cached_context
+            else:
+                logger.info("Cache expired for key.")
+                del self._cache[cache_key]  # Expired
+        else:
+            logger.info("Cache miss.")
+
         # ── Resolve parameters via business layer ─────────────────────────
         tourism_p   = resolve_tourism_params(trip)
         hotel_p     = resolve_hotel_params(trip)
@@ -142,7 +164,7 @@ class TripOrchestrator:
         )
 
         # ── Assemble and return TripContext ───────────────────────────────
-        return TripContext(
+        context = TripContext(
             trip=trip,
             attractions=attractions,
             hotels=hotels,
@@ -153,3 +175,7 @@ class TripOrchestrator:
             route=route,
             service_status=status,
         )
+        
+        # Save to cache
+        self._cache[cache_key] = (now + self._cache_ttl_seconds, context)
+        return context

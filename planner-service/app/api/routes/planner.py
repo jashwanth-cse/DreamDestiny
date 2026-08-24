@@ -25,14 +25,16 @@ router = APIRouter()
 # Concrete clients are wired here — the orchestrator itself only knows
 # about provider interfaces.  To swap a provider, change only this section.
 
+_orchestrator_instance = TripOrchestrator(
+    tourism = TourismClient(),
+    hotels  = HotelClient(),
+    buses   = BusClient(),
+    trains  = TrainClient(),
+    route   = RouteClient(),
+)
+
 def _get_orchestrator() -> TripOrchestrator:
-    return TripOrchestrator(
-        tourism = TourismClient(),
-        hotels  = HotelClient(),
-        buses   = BusClient(),
-        trains  = TrainClient(),
-        route   = RouteClient(),
-    )
+    return _orchestrator_instance
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
