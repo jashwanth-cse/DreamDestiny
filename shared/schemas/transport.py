@@ -236,7 +236,7 @@ class TransportMode(str):
 class RouteOption(BaseModel):
     """
     A generic route summary between two points.
-    Used by the Trip Planner for distance/cost estimates,
+    Used by the Trip Planner for distance/duration data,
     not tied to a specific provider.
     """
 
@@ -247,8 +247,4 @@ class RouteOption(BaseModel):
     mode: str = Field(
         default="car",
         description="Transport mode used for this route estimate."
-    )
-    estimated_cost: Optional[float] = Field(
-        default=None,
-        description="Estimated travel cost in INR."
     )
