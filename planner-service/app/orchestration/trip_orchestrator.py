@@ -12,8 +12,6 @@ ARCHITECTURE RULES (enforced here):
 """
 
 import asyncio
-import hashlib
-import json
 import logging
 import time
 from typing import Optional
@@ -38,7 +36,8 @@ logger = logging.getLogger(__name__)
 class TripOrchestrator:
     """
     Coordinates concurrent data collection from all registered providers.
-    Uses an in-memory TTL cache to return repeated queries instantly.
+    Uses granular in-memory TTL caching so changing one parameter (e.g. date)
+    doesn't invalidate cache for independent domains (e.g. attractions, route).
     """
 
     def __init__(
@@ -55,40 +54,78 @@ class TripOrchestrator:
         self._trains  = trains
         self._route   = route
         
-        # Simple TTL Cache: { "request_hash": (expiry_timestamp, TripContext) }
-        self._cache: dict[str, tuple[float, TripContext]] = {}
-        self._cache_ttl_seconds = 900  # 15 minutes
+        # Granular TTL Caches
+        self._cache_ttl = 900  # 15 minutes
+        self._cache_tourism = {}
+        self._cache_route = {}
+        self._cache_hotels = {}
+        self._cache_buses = {}
+        self._cache_trains = {}
 
-    def _get_cache_key(self, trip: TripRequest) -> str:
-        """Hash the TripRequest deterministically to use as a cache key."""
-        trip_dict = trip.model_dump(mode="json")
-        trip_json = json.dumps(trip_dict, sort_keys=True)
-        return hashlib.sha256(trip_json.encode("utf-8")).hexdigest()
+    # ── Granular Cache Wrappers ───────────────────────────────────────────────
+
+    async def _get_tourism(self, city: str, limit: int):
+        key = f"{city}:{limit}"
+        now = time.time()
+        if key in self._cache_tourism and now < self._cache_tourism[key][0]:
+            logger.info("Cache HIT: Tourism")
+            return self._cache_tourism[key][1]
+        
+        data = await self._tourism.get_attractions(city, limit)
+        self._cache_tourism[key] = (now + self._cache_ttl, data)
+        return data
+
+    async def _get_route(self, origin: str, destination: str):
+        key = f"{origin}:{destination}"
+        now = time.time()
+        if key in self._cache_route and now < self._cache_route[key][0]:
+            logger.info("Cache HIT: Route")
+            return self._cache_route[key][1]
+            
+        data = await self._route.get_route(origin, destination)
+        self._cache_route[key] = (now + self._cache_ttl, data)
+        return data
+
+    async def _get_hotels(self, city: str, check_in: str, check_out: str, adults: int, children: int):
+        key = f"{city}:{check_in}:{check_out}:{adults}:{children}"
+        now = time.time()
+        if key in self._cache_hotels and now < self._cache_hotels[key][0]:
+            logger.info("Cache HIT: Hotels")
+            return self._cache_hotels[key][1]
+            
+        data = await self._hotels.get_hotels(city, check_in, check_out, adults, children)
+        self._cache_hotels[key] = (now + self._cache_ttl, data)
+        return data
+
+    async def _get_buses(self, source: str, destination: str, date: str):
+        key = f"{source}:{destination}:{date}"
+        now = time.time()
+        if key in self._cache_buses and now < self._cache_buses[key][0]:
+            logger.info("Cache HIT: Buses")
+            return self._cache_buses[key][1]
+            
+        data = await self._buses.get_buses(source, destination, date)
+        self._cache_buses[key] = (now + self._cache_ttl, data)
+        return data
+
+    async def _get_trains(self, source: str, destination: str, date: str):
+        key = f"{source}:{destination}:{date}"
+        now = time.time()
+        if key in self._cache_trains and now < self._cache_trains[key][0]:
+            logger.info("Cache HIT: Trains")
+            return self._cache_trains[key][1]
+            
+        data = await self._trains.get_trains(source, destination, date)
+        self._cache_trains[key] = (now + self._cache_ttl, data)
+        return data
+
+    # ── Main Orchestration ────────────────────────────────────────────────────
 
     async def build_context(self, trip: TripRequest) -> TripContext:
         """
         Resolve parameters, gather all service data concurrently,
-        and assemble a TripContext. Uses TTL caching for extreme speed.
+        and assemble a TripContext using granular caching.
         """
-        cache_key = self._get_cache_key(trip)
-        now = time.time()
-        
-        logger.info(f"Cache key: {cache_key}")
-        logger.info(f"Current cache size: {len(self._cache)}")
-        logger.info(f"Keys in cache: {list(self._cache.keys())}")
-        
-        # Check cache
-        if cache_key in self._cache:
-            expiry, cached_context = self._cache[cache_key]
-            if now < expiry:
-                logger.info("TripOrchestrator cache hit! Returning instantly.")
-                return cached_context
-            else:
-                logger.info("Cache expired for key.")
-                del self._cache[cache_key]  # Expired
-        else:
-            logger.info("Cache miss.")
-
         # ── Resolve parameters via business layer ─────────────────────────
         tourism_p   = resolve_tourism_params(trip)
         hotel_p     = resolve_hotel_params(trip)
@@ -96,8 +133,6 @@ class TripOrchestrator:
         route_p     = resolve_route_params(trip)
 
         # ── Concurrent collection ─────────────────────────────────────────
-        # Every call is wrapped so a provider failure returns an empty result
-        # rather than propagating an exception.
         (
             attractions,
             hotels,
@@ -107,41 +142,13 @@ class TripOrchestrator:
             return_trains,
             route,
         ) = await asyncio.gather(
-            self._tourism.get_attractions(
-                city=tourism_p.city,
-                limit=tourism_p.limit,
-            ),
-            self._hotels.get_hotels(
-                city=hotel_p.city,
-                check_in=hotel_p.check_in,
-                check_out=hotel_p.check_out,
-                adults=hotel_p.adults,
-                children=hotel_p.children,
-            ),
-            self._buses.get_buses(
-                source=transport_p.source,
-                destination=transport_p.destination,
-                journey_date=transport_p.outbound_date,
-            ),
-            self._buses.get_buses(
-                source=transport_p.destination,
-                destination=transport_p.source,
-                journey_date=transport_p.return_date,
-            ),
-            self._trains.get_trains(
-                source=transport_p.source,
-                destination=transport_p.destination,
-                journey_date=transport_p.outbound_date,
-            ),
-            self._trains.get_trains(
-                source=transport_p.destination,
-                destination=transport_p.source,
-                journey_date=transport_p.return_date,
-            ),
-            self._route.get_route(
-                origin=route_p.origin,
-                destination=route_p.destination,
-            ),
+            self._get_tourism(tourism_p.city, tourism_p.limit),
+            self._get_hotels(hotel_p.city, hotel_p.check_in, hotel_p.check_out, hotel_p.adults, hotel_p.children),
+            self._get_buses(transport_p.source, transport_p.destination, transport_p.outbound_date),
+            self._get_buses(transport_p.destination, transport_p.source, transport_p.return_date),
+            self._get_trains(transport_p.source, transport_p.destination, transport_p.outbound_date),
+            self._get_trains(transport_p.destination, transport_p.source, transport_p.return_date),
+            self._get_route(route_p.origin, route_p.destination),
         )
 
         # ── Service availability tracking ─────────────────────────────────
@@ -153,18 +160,8 @@ class TripOrchestrator:
             route   = route is not None,
         )
 
-        logger.info(
-            "TripOrchestrator complete | "
-            "attractions=%d hotels=%d outbound_buses=%d return_buses=%d "
-            "outbound_trains=%d return_trains=%d route=%s",
-            len(attractions), len(hotels),
-            len(outbound_buses), len(return_buses),
-            len(outbound_trains), len(return_trains),
-            "ok" if route else "unavailable",
-        )
-
         # ── Assemble and return TripContext ───────────────────────────────
-        context = TripContext(
+        return TripContext(
             trip=trip,
             attractions=attractions,
             hotels=hotels,
@@ -175,7 +172,3 @@ class TripOrchestrator:
             route=route,
             service_status=status,
         )
-        
-        # Save to cache
-        self._cache[cache_key] = (now + self._cache_ttl_seconds, context)
-        return context
