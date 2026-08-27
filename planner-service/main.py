@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api.routes.planner import router as planner_router
+from app.api.routes.plan import router as plan_router
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -30,9 +31,12 @@ app = FastAPI(
     title="Dream Destiny — Planner Service",
     description=(
         "Orchestrates Tourism, Transport, Hotel, and Route services to "
-        "build a unified TripContext. Pure coordination — no LLM, no business logic."
+        "build a unified TripContext, then runs the Gemini Planning Agent "
+        "to produce a structured day-by-day Itinerary.\n\n"
+        "**POST /plan/context** — data only (no LLM)\n"
+        "**POST /plan** — full AI itinerary"
     ),
-    version="1.0.0",
+    version="2.0.0",
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
@@ -48,9 +52,10 @@ app.add_middleware(
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 app.include_router(planner_router)
+app.include_router(plan_router)
 
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Liveness probe."""
-    return {"status": "ok", "service": "planner-service"}
+    return {"status": "ok", "service": "planner-service", "version": "2.0.0"}

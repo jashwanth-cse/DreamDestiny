@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # ── HTTP client settings ───────────────────────────────────────────────
     http_timeout: float = 20.0        # seconds per downstream call
 
+    # ── Gemini / LLM ──────────────────────────────────────────────────────
+    gemini_api_key: str = ""          # Required for POST /plan
+    llm_timeout: float = 60.0         # seconds — LLM calls take longer
+
     # ── CORS ───────────────────────────────────────────────────────────────
     frontend_origin: str = "http://localhost:3000"
 
