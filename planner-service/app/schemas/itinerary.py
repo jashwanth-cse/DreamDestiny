@@ -47,32 +47,87 @@ class Activity(BaseModel):
 
 class TransportDecision(BaseModel):
     """
-    The LLM's choice of transport mode for a leg of the journey.
+    The LLM's complete transport choice for one journey leg.
 
-    mode must be one of: 'train', 'bus', 'driving', 'transit', 'walk'.
-    train_number/operator_name are optional identifiers to pin the decision
-    to a specific option in TripContext.outbound_trains / outbound_buses.
+    ALL factual fields (times, fares, seats) must be copied EXACTLY from
+    the pre-filtered TripContext payload — never invented.
+
+    Format contract (how this renders in the itinerary):
+        {train_number} - {train_name}
+        Departs {origin} on {departure_date} @ {departure_time}
+        Arrives {destination} on {arrival_date} @ {arrival_time}
+        Class: {travel_class} | Seats: {seats_available} {seat_status} | Rs.{fare_per_person}/person
     """
+    # ── Journey leg ───────────────────────────────────────────────────────────
     leg: str = Field(
         ...,
-        description="Human-readable description of this leg, e.g. 'Chennai → Coimbatore'.",
+        description="Human-readable route, e.g. 'Chennai → Coimbatore'.",
     )
     mode: str = Field(
         ...,
-        description="Chosen mode: 'train', 'bus', 'driving', 'transit', or 'walk'.",
+        description="Chosen mode: 'train' or 'bus'.",
     )
-    # Optional pin to a specific provider result
+
+    # ── Train fields (null for bus legs) ─────────────────────────────────────
     train_number: Optional[str] = Field(
         default=None,
-        description="train_number from a TrainContext in TripContext. Null for non-train legs.",
+        description="Exact train_number from TripContext outbound_trains / return_trains.",
     )
+    train_name: Optional[str] = Field(
+        default=None,
+        description="Exact train_name from TripContext. Do not invent or abbreviate.",
+    )
+
+    # ── Bus fields (null for train legs) ─────────────────────────────────────
     operator_name: Optional[str] = Field(
         default=None,
-        description="operator_name from a BusContext in TripContext. Null for non-bus legs.",
+        description="Exact operator_name from TripContext outbound_buses / return_buses.",
     )
+    bus_type: Optional[str] = Field(
+        default=None,
+        description="Exact bus_type from TripContext, e.g. 'AC Sleeper (2+1)'.",
+    )
+
+    # ── Schedule (copy from pre-filtered payload — do NOT compute) ────────────
+    departure_date: Optional[str] = Field(
+        default=None,
+        description="Departure date YYYY-MM-DD. Copy from payload. May be day-1 for overnight trains.",
+    )
+    departure_time: Optional[str] = Field(
+        default=None,
+        description="Departure time HH:MM (24h). Copy exactly from payload.",
+    )
+    arrival_date: Optional[str] = Field(
+        default=None,
+        description="Arrival date YYYY-MM-DD. Copy from payload.",
+    )
+    arrival_time: Optional[str] = Field(
+        default=None,
+        description="Arrival time HH:MM (24h). Copy exactly from payload.",
+    )
+
+    # ── Class & availability (copy from pre-filtered payload) ─────────────────
+    travel_class: Optional[str] = Field(
+        default=None,
+        description="Chosen class code: '1A','2A','3A','CC','SL','2S','GN' or bus seat type.",
+    )
+    seat_status: Optional[str] = Field(
+        default=None,
+        description="'AVL' (confirmed) or 'RAC' (reservation against cancellation).",
+    )
+    seats_available: Optional[int] = Field(
+        default=None,
+        description="Live seat count from payload. Copy exactly — do not guess.",
+    )
+    fare_per_person: Optional[int] = Field(
+        default=None,
+        description="Fare in INR per person for the chosen class. Copy from payload.",
+    )
+
+    # ── Agent reasoning ───────────────────────────────────────────────────────
     reasoning: Optional[str] = Field(
         default=None,
-        description="Brief reasoning for this transport choice.",
+        description="Why this option was selected (class fit, timing, availability).",
     )
 
 

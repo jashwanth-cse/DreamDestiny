@@ -27,10 +27,34 @@ class BudgetLevel(str, Enum):
 
 
 class TransportPref(str, Enum):
-    train = "train"
-    bus   = "bus"
+    train  = "train"
+    bus    = "bus"
     flight = "flight"
-    any   = "any"
+    any    = "any"
+
+
+class BerthPreference(str, Enum):
+    """
+    Preferred berth / travel class for trains and buses.
+
+    AC train classes  : 1A (First AC), 2A (Second AC), 3A (Third AC), CC (Chair Car)
+    Non-AC classes    : SL (Sleeper), 2S (Second Sitting), GN (General)
+    Buses             : ac = AC coach, non_ac = ordinary/sleeper coach
+    any               : No preference — show all available classes (default when omitted)
+
+    If a specific class (e.g. "3A") is unavailable on a train, the agent
+    will fall back to the next best class within the same AC/Non-AC category.
+    """
+    any       = "any"
+    # ── AC train classes ──────────────────────────────────────────────────────
+    first_ac  = "1A"
+    second_ac = "2A"
+    third_ac  = "3A"
+    chair_car = "CC"
+    # ── Non-AC train classes ──────────────────────────────────────────────────
+    sleeper        = "SL"
+    second_sitting = "2S"
+    general        = "GN"
 
 
 class HotelPref(str, Enum):
@@ -62,6 +86,13 @@ class BudgetPreferences(BaseModel):
 
 class TransportPreferences(BaseModel):
     mode: TransportPref = TransportPref.any
+    berth_preference: Optional[BerthPreference] = Field(
+        default=None,
+        description=(
+            "Preferred berth/class code. One of: 'any', '1A', '2A', '3A', 'CC' (AC trains), "
+            "'SL', '2S', 'GN' (Non-AC trains). Omit or set null for no preference."
+        ),
+    )
 
 
 class HotelPreferences(BaseModel):
