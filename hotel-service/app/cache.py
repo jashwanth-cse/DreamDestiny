@@ -19,8 +19,12 @@ from typing import Optional
 
 from app.config import settings
 
-# Absolute path to the SQLite file — sits in hotel-service/app/
-_DB_PATH = Path(__file__).parent / "hotel_cache.db"
+# Path to the SQLite file
+if settings.hotel_db_path:
+    _DB_PATH = Path(settings.hotel_db_path)
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+else:
+    _DB_PATH = Path(__file__).parent / "hotel_cache.db"
 
 
 def _connect() -> sqlite3.Connection:

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # Cache
     hotel_cache_ttl_hours: int = 24
+    hotel_db_path: str = ""
 
     # CORS
     frontend_origin: str = "http://localhost:3000"
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 

@@ -1,0 +1,151 @@
+services:
+  # ── Tourism Service ─────────────────────────────────────────────────────────
+  tourism-service:
+    build:
+      context: ./tourism-service
+      dockerfile: Dockerfile
+    container_name: dream-destiny-tourism
+    restart: unless-stopped
+    ports:
+      - "${TOURISM_PORT:-8001}:8001"
+    environment:
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ── Hotel Service ───────────────────────────────────────────────────────────
+  hotel-service:
+    build:
+      context: ./hotel-service
+      dockerfile: Dockerfile
+    container_name: dream-destiny-hotel
+    restart: unless-stopped
+    ports:
+      - "${HOTEL_PORT:-8002}:8002"
+    environment:
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
+      - HOTEL_CACHE_TTL_HOURS=${HOTEL_CACHE_TTL_HOURS:-24}
+      - HOTEL_DB_PATH=/app/data/hotel_cache.db
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+    volumes:
+      - hotel-cache-data:/app/data
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ── Route Service ───────────────────────────────────────────────────────────
+  route-service:
+    build:
+      context: ./route-service
+      dockerfile: Dockerfile
+    container_name: dream-destiny-route
+    restart: unless-stopped
+    ports:
+      - "${ROUTE_PORT:-8003}:8003"
+    environment:
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ── Bus Transport Service ───────────────────────────────────────────────────
+  bus-service:
+    build:
+      context: ./transport-service/bus
+      dockerfile: Dockerfile
+    container_name: dream-destiny-bus
+    restart: unless-stopped
+    ports:
+      - "${BUS_PORT:-8004}:8004"
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ── Train Transport Service ─────────────────────────────────────────────────
+  train-service:
+    build:
+      context: ./transport-service/train
+      dockerfile: Dockerfile
+    container_name: dream-destiny-train
+    restart: unless-stopped
+    ports:
+      - "${TRAIN_PORT:-8005}:8005"
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8005/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ── Planner & AI Orchestration Service ───────────────────────────────────────
+  planner-service:
+    build:
+      context: ./planner-service
+      dockerfile: Dockerfile
+    container_name: dream-destiny-planner
+    restart: unless-stopped
+    ports:
+      - "${PLANNER_PORT:-8000}:8000"
+    environment:
+      - TOURISM_SERVICE_URL=http://tourism-service:8001
+      - HOTEL_SERVICE_URL=http://hotel-service:8002
+      - ROUTE_SERVICE_URL=http://route-service:8003
+      - TRANSPORT_BUS_SERVICE_URL=http://bus-service:8004
+      - TRANSPORT_TRAIN_SERVICE_URL=http://train-service:8005
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - HTTP_TIMEOUT=${HTTP_TIMEOUT:-20.0}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-60.0}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+    depends_on:
+      tourism-service:
+        condition: service_healthy
+      hotel-service:
+        condition: service_healthy
+      route-service:
+        condition: service_healthy
+      bus-service:
+        condition: service_healthy
+      train-service:
+        condition: service_healthy
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  hotel-cache-data:
+    driver: local
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  dream-destiny-net:
+    driver: bridge
