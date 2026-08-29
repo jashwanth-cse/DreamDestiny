@@ -25,8 +25,8 @@ import urllib.error
 # ==============================================================================
 
 TRIP_REQUEST = {
-    "origin": "Chennai",
-    "destination": "Coimbatore",
+    "origin": "Rajapalayam",
+    "destination": "Delhi",
     "start_date": "2026-09-15",
     "end_date": "2026-09-18",
     "travelers": 4,
