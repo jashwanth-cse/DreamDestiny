@@ -5,6 +5,7 @@ Responsible for resolving station names to codes, querying the Ixigo API,
 and parsing the raw JSON response into a clean, strictly typed structure.
 """
 
+import re
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -80,6 +81,29 @@ class TrainService:
     # Search & Parse
     # --------------------------------------------------------
 
+    @staticmethod
+    def _normalize_journey_date(raw_date: str) -> str:
+        """
+        Normalizes any date string (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, YYYY/MM/DD)
+        into the required DD-MM-YYYY format for the Ixigo API.
+        """
+        raw = str(raw_date).strip()
+        if not raw:
+            return ""
+        # YYYY-MM-DD -> DD-MM-YYYY
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", raw):
+            parts = raw.split("-")
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+        # YYYY/MM/DD -> DD-MM-YYYY
+        if re.match(r"^\d{4}/\d{2}/\d{2}$", raw):
+            parts = raw.split("/")
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+        # DD/MM/YYYY -> DD-MM-YYYY
+        if re.match(r"^\d{2}/\d{2}/\d{4}$", raw):
+            parts = raw.split("/")
+            return f"{parts[0]}-{parts[1]}-{parts[2]}"
+        return raw
+
     def search(
         self,
         source: str,
@@ -95,10 +119,17 @@ class TrainService:
         """
         Main entry point to search for trains.
         """
-        source_station = self.station_service.get_station(source)
-        dest_station = self.station_service.get_station(destination)
+        # Normalize date to DD-MM-YYYY format for the provider API
+        date_str = self._normalize_journey_date(journey_date)
 
-        params = self._build_params(source_station["station_code"], dest_station["station_code"], journey_date)
+        # ── Step 0: Resolve stations concurrently (instant for cached/pre-seeded) ──
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_src = executor.submit(self.station_service.get_station, source)
+            future_dst = executor.submit(self.station_service.get_station, destination)
+            source_station = future_src.result()
+            dest_station = future_dst.result()
+
+        params = self._build_params(source_station["station_code"], dest_station["station_code"], date_str)
         raw_data = self._call_ixigo(params)
         
         payload = raw_data.get("data", {})
@@ -118,7 +149,7 @@ class TrainService:
         # Determine the classes that will survive class-filtering so we only
         # fetch live availability for classes the user will actually see.
         target_class = travel_class.upper() if travel_class else None
-        self._enrich_availability(parsed_trains, journey_date, quota, target_class)
+        self._enrich_availability(parsed_trains, date_str, quota, target_class)
 
         # ── Step 3: Filter, recommend, sort ───────────────────────────────────
         result_trains = []
