@@ -101,6 +101,28 @@ services:
       retries: 3
       start_period: 5s
 
+  # ── Flight Transport Service ────────────────────────────────────────────────
+  flight-service:
+    build:
+      context: ./transport-service/flight
+      dockerfile: Dockerfile
+    container_name: dream-destiny-flight
+    restart: unless-stopped
+    ports:
+      - "${FLIGHT_PORT:-8006}:8006"
+    environment:
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
+      - HTTP_TIMEOUT=${HTTP_TIMEOUT:-30.0}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8006/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   # ── Planner & AI Orchestration Service ───────────────────────────────────────
   planner-service:
     build:
@@ -116,6 +138,7 @@ services:
       - ROUTE_SERVICE_URL=http://route-service:8003
       - TRANSPORT_BUS_SERVICE_URL=http://bus-service:8004
       - TRANSPORT_TRAIN_SERVICE_URL=http://train-service:8005
+      - TRANSPORT_FLIGHT_SERVICE_URL=http://flight-service:8006
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - HTTP_TIMEOUT=${HTTP_TIMEOUT:-20.0}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-60.0}
@@ -130,6 +153,8 @@ services:
       bus-service:
         condition: service_healthy
       train-service:
+        condition: service_healthy
+      flight-service:
         condition: service_healthy
     networks:
       - dream-destiny-net

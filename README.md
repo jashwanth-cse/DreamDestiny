@@ -21,6 +21,7 @@ graph TD
     Planner -->|GET /route| Route[route-service :8003]
     Planner -->|GET /api/v1/buses| Bus[bus-service :8004]
     Planner -->|GET /api/v1/trains| Train[train-service :8005]
+    Planner -->|POST /flights/search| Flight[flight-service :8006]
     Planner -->|Structured Prompt| Gemini[Google Gemini 2.5 Flash]
     Hotel -->|SQLite Cache| HotelVol[(hotel-cache-data)]
 ```
@@ -33,6 +34,7 @@ graph TD
 | **`route-service`** | `8003` | Computes transit & driving distances and travel times | Google Routes API |
 | **`bus-service`** | `8004` | Resolves routes and searches real-time bus schedules & fares | RedBus Provider |
 | **`train-service`** | `8005` | Searches Indian Railways trains, schedules, classes & live seat status | Ixigo / ConfirmTkt API |
+| **`flight-service`** | `8006` | Searches flights, schedules, fares, classes & carbon data | SerpApi (Google Flights) |
 
 ---
 

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Dream Destiny - Manual Test Client
 ===================================
 Edit the TRIP_REQUEST block below and run:
@@ -25,11 +25,11 @@ import urllib.error
 # ==============================================================================
 
 TRIP_REQUEST = {
-    "origin": "Rajapalayam",
-    "destination": "Delhi",
-    "start_date": "2026-09-15",
-    "end_date": "2026-09-18",
-    "travelers": 4,
+    "origin": "Chennai",
+    "destination": "Coimbatore",
+    "start_date": "2026-10-15",
+    "end_date": "2026-10-18",
+    "travelers": 2,
 
     "preferences": {
 
@@ -44,7 +44,7 @@ TRIP_REQUEST = {
         #                  "any" or null   -> show all available classes
         "transport": {
             "mode": "train",
-            "berth_preference": "SL"
+            "berth_preference": "3A"
         },
 
         # Hotel category: "budget" | "mid_range" | "luxury" | "any"
