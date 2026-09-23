@@ -248,3 +248,34 @@ class RouteOption(BaseModel):
         default="car",
         description="Transport mode used for this route estimate."
     )
+
+
+# ===========================================================================
+# Flight
+# ===========================================================================
+
+class FlightOption(BaseModel):
+    """
+    A normalized flight option.
+    Mirrors transport-service/flight/app/models/response_models.py -> Flight.
+    """
+    flight_id: str = Field(..., description="Unique stable flight identifier")
+    airline: Optional[str] = Field(default=None, description="Primary airline name")
+    airline_logo: Optional[str] = Field(default=None, description="URL of airline logo")
+    flight_number: Optional[str] = Field(default=None, description="Flight number(s)")
+    departure_airport_code: str = Field(..., description="Origin IATA code")
+    departure_airport_name: Optional[str] = Field(default=None, description="Origin airport name")
+    arrival_airport_code: str = Field(..., description="Destination IATA code")
+    arrival_airport_name: Optional[str] = Field(default=None, description="Destination airport name")
+    departure_time: Optional[str] = Field(default=None, description="Departure datetime string")
+    arrival_time: Optional[str] = Field(default=None, description="Arrival datetime string")
+    duration_minutes: Optional[int] = Field(default=None, description="Total journey duration in minutes")
+    duration: Optional[str] = Field(default=None, description="Human readable duration, e.g. '1h 5m'")
+    stops: int = Field(default=0, description="Number of stops (0 = nonstop/direct)")
+    price: Optional[float] = Field(default=None, description="Ticket price")
+    currency: str = Field(default="INR", description="Currency code")
+    travel_class: Optional[str] = Field(default=None, description="Travel class (e.g. 'Economy')")
+    booking_token: Optional[str] = Field(default=None, description="Provider booking token")
+    departure_token: Optional[str] = Field(default=None, description="Provider departure token")
+    is_best_flight: bool = Field(default=False, description="True if marked as Best Flight")
+

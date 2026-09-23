@@ -47,6 +47,16 @@ class RouteParams:
     destination: str
 
 
+@dataclass(frozen=True)
+class FlightParams:
+    origin: str
+    destination: str
+    outbound_date: str   # YYYY-MM-DD (Google Flights format)
+    return_date: str     # YYYY-MM-DD
+    travelers: int
+    travel_class: str
+
+
 def _to_service_date(d: date) -> str:
     """Convert Python date to DD-MM-YYYY (bus/train service format)."""
     return d.strftime("%d-%m-%Y")
@@ -79,6 +89,29 @@ def resolve_transport_params(trip: TripRequest) -> TransportParams:
         destination=trip.destination,
         outbound_date=_to_service_date(trip.start_date),
         return_date=_to_service_date(trip.end_date),
+    )
+
+
+def resolve_flight_params(trip: TripRequest) -> FlightParams:
+    # Map berth preference / class to flight travel class if applicable
+    berth_pref = trip.preferences.transport.berth_preference
+    berth_val = berth_pref.value if berth_pref else "any"
+    if berth_val in ("1A", "first"):
+        travel_class = "first"
+    elif berth_val in ("2A", "business"):
+        travel_class = "business"
+    elif berth_val in ("3A", "premium"):
+        travel_class = "premium_economy"
+    else:
+        travel_class = "economy"
+
+    return FlightParams(
+        origin=trip.origin,
+        destination=trip.destination,
+        outbound_date=trip.start_date.isoformat(),
+        return_date=trip.end_date.isoformat(),
+        travelers=trip.travelers,
+        travel_class=travel_class,
     )
 
 

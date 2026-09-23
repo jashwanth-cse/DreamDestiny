@@ -139,6 +139,7 @@ services:
       - TRANSPORT_BUS_SERVICE_URL=http://bus-service:8004
       - TRANSPORT_TRAIN_SERVICE_URL=http://train-service:8005
       - TRANSPORT_FLIGHT_SERVICE_URL=http://flight-service:8006
+      - FLIGHT_SERVICE_URL=http://flight-service:8006
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - HTTP_TIMEOUT=${HTTP_TIMEOUT:-20.0}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-60.0}

@@ -20,8 +20,10 @@ from app.interfaces.hotel import HotelProvider
 from app.interfaces.route import RouteProvider
 from app.interfaces.tourism import TourismProvider
 from app.interfaces.transport import BusProvider, TrainProvider
+from app.interfaces.flight import FlightProvider
 
 from app.business.preferences import (
+    resolve_flight_params,
     resolve_hotel_params,
     resolve_route_params,
     resolve_tourism_params,
@@ -47,12 +49,14 @@ class TripOrchestrator:
         buses:    BusProvider,
         trains:   TrainProvider,
         route:    RouteProvider,
+        flights:  Optional[FlightProvider] = None,
     ):
         self._tourism = tourism
         self._hotels  = hotels
         self._buses   = buses
         self._trains  = trains
         self._route   = route
+        self._flights = flights
         
         # Granular TTL Caches
         self._cache_ttl = 900  # 15 minutes
@@ -61,6 +65,7 @@ class TripOrchestrator:
         self._cache_hotels = {}
         self._cache_buses = {}
         self._cache_trains = {}
+        self._cache_flights = {}
 
     # ── Granular Cache Wrappers ───────────────────────────────────────────────
 
@@ -119,6 +124,32 @@ class TripOrchestrator:
         self._cache_trains[key] = (now + self._cache_ttl, data)
         return data
 
+    async def _get_flights(
+        self,
+        origin: str,
+        destination: str,
+        outbound_date: str,
+        travelers: int,
+        travel_class: Optional[str] = "economy",
+    ):
+        if not self._flights:
+            return []
+        key = f"{origin}:{destination}:{outbound_date}:{travelers}:{travel_class}"
+        now = time.time()
+        if key in self._cache_flights and now < self._cache_flights[key][0]:
+            logger.info("Cache HIT: Flights (%s -> %s)", origin, destination)
+            return self._cache_flights[key][1]
+
+        data = await self._flights.get_flights(
+            origin=origin,
+            destination=destination,
+            outbound_date=outbound_date,
+            travelers=travelers,
+            travel_class=travel_class,
+        )
+        self._cache_flights[key] = (now + self._cache_ttl, data)
+        return data
+
     # ── Main Orchestration ────────────────────────────────────────────────────
 
     async def build_context(self, trip: TripRequest) -> TripContext:
@@ -130,6 +161,7 @@ class TripOrchestrator:
         tourism_p   = resolve_tourism_params(trip)
         hotel_p     = resolve_hotel_params(trip)
         transport_p = resolve_transport_params(trip)
+        flight_p    = resolve_flight_params(trip)
         route_p     = resolve_route_params(trip)
 
         # ── Concurrent collection ─────────────────────────────────────────
@@ -140,6 +172,8 @@ class TripOrchestrator:
             return_buses,
             outbound_trains,
             return_trains,
+            outbound_flights,
+            return_flights,
             route,
         ) = await asyncio.gather(
             self._get_tourism(tourism_p.city, tourism_p.limit),
@@ -148,6 +182,8 @@ class TripOrchestrator:
             self._get_buses(transport_p.destination, transport_p.source, transport_p.return_date),
             self._get_trains(transport_p.source, transport_p.destination, transport_p.outbound_date),
             self._get_trains(transport_p.destination, transport_p.source, transport_p.return_date),
+            self._get_flights(flight_p.origin, flight_p.destination, flight_p.outbound_date, flight_p.travelers, flight_p.travel_class),
+            self._get_flights(flight_p.destination, flight_p.origin, flight_p.return_date, flight_p.travelers, flight_p.travel_class),
             self._get_route(route_p.origin, route_p.destination),
         )
 
@@ -157,6 +193,7 @@ class TripOrchestrator:
             hotels  = bool(hotels),
             buses   = bool(outbound_buses or return_buses),
             trains  = bool(outbound_trains or return_trains),
+            flights = bool(outbound_flights or return_flights),
             route   = route is not None,
         )
 
@@ -169,6 +206,9 @@ class TripOrchestrator:
             return_buses=return_buses,
             outbound_trains=outbound_trains,
             return_trains=return_trains,
+            outbound_flights=outbound_flights,
+            return_flights=return_flights,
+            flights=outbound_flights + return_flights,
             route=route,
             service_status=status,
         )

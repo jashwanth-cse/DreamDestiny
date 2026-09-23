@@ -26,7 +26,7 @@ from typing import Optional
 from pydantic import ValidationError
 
 from app.agents.base import BaseAgent, AgentError
-from app.schemas.context import TripContext, TrainContext, BusContext, HotelContext
+from app.schemas.context import TripContext, TrainContext, BusContext, HotelContext, FlightContext
 from app.schemas.itinerary import Itinerary
 from app.services.llm.gemini_client import GeminiClient, GeminiError
 from app.services.llm.prompts import PLANNING_SYSTEM_PROMPT
@@ -352,6 +352,50 @@ def _filter_buses(
     ]
 
 
+# ── Flight pre-filter ──────────────────────────────────────────────────────────
+
+def _filter_flights(
+    flights: list[FlightContext],
+    budget_level: str = "medium",
+    top_n: int = 5,
+) -> list[dict]:
+    """
+    Pre-filter flights:
+    1. Sort by: is_best_flight DESC, stops ASC, price ASC.
+    2. Return top_n normalized dicts.
+    """
+    if not flights:
+        return []
+
+    sorted_flights = sorted(
+        flights,
+        key=lambda f: (
+            0 if f.is_best_flight else 1,
+            f.stops,
+            f.price if f.price is not None else float("inf"),
+        )
+    )
+
+    return [
+        {
+            "flight_id":         f.flight_id,
+            "airline":           f.airline,
+            "flight_number":     f.flight_number,
+            "departure_airport": f.departure_airport_code,
+            "arrival_airport":   f.arrival_airport_code,
+            "departure_time":    f.departure_time,
+            "arrival_time":      f.arrival_time,
+            "duration":          f.duration,
+            "stops":             f.stops,
+            "price":             f.price,
+            "currency":          f.currency,
+            "travel_class":      f.travel_class,
+            "is_best_flight":    f.is_best_flight,
+        }
+        for f in sorted_flights[:top_n]
+    ]
+
+
 # ── Payload builder ───────────────────────────────────────────────────────────
 
 def _build_context_payload(context: TripContext) -> dict:
@@ -458,6 +502,20 @@ def _build_context_payload(context: TripContext) -> dict:
             top_n=5,
         ),
 
+        # Outbound flights — top 5: best flights, non-stop, lowest price
+        "outbound_flights": _filter_flights(
+            context.outbound_flights,
+            budget_level=budget_level,
+            top_n=5,
+        ),
+
+        # Return flights — same logic
+        "return_flights": _filter_flights(
+            context.return_flights,
+            budget_level=budget_level,
+            top_n=5,
+        ),
+
         "route": (
             {
                 "distance_km": context.route.distance_km,
@@ -501,13 +559,14 @@ class PlanningAgent(BaseAgent[Itinerary]):
 
         logger.info(
             "PlanningAgent.plan: %s → %s | %d attractions | %d hotels | "
-            "%d outbound trains (filtered) | %d outbound buses (filtered)",
+            "%d outbound trains | %d outbound buses | %d outbound flights",
             context.trip.origin,
             context.trip.destination,
             len(payload["attractions"]),
             len(payload["hotels"]),
             len(payload["outbound_trains"]),
             len(payload["outbound_buses"]),
+            len(payload["outbound_flights"]),
         )
 
         try:

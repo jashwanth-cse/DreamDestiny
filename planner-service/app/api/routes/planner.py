@@ -9,6 +9,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from app.clients.flight_client import FlightClient
 from app.clients.hotel_client import HotelClient
 from app.clients.route_client import RouteClient
 from app.clients.tourism_client import TourismClient
@@ -31,6 +32,7 @@ _orchestrator_instance = TripOrchestrator(
     buses   = BusClient(),
     trains  = TrainClient(),
     route   = RouteClient(),
+    flights = FlightClient(),
 )
 
 def _get_orchestrator() -> TripOrchestrator:

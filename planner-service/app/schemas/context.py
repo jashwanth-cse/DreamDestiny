@@ -120,6 +120,29 @@ class RouteContext(BaseModel):
     routes: list[RouteModeContext] = Field(default_factory=list)
 
 
+class FlightContext(BaseModel):
+    """Normalized flight option for the planning agent."""
+    flight_id: str
+    airline: Optional[str] = None
+    airline_logo: Optional[str] = None
+    flight_number: Optional[str] = None
+    departure_airport_code: str
+    departure_airport_name: Optional[str] = None
+    arrival_airport_code: str
+    arrival_airport_name: Optional[str] = None
+    departure_time: Optional[str] = None
+    arrival_time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    duration: Optional[str] = None
+    stops: int = 0
+    price: Optional[float] = None
+    currency: str = "INR"
+    travel_class: Optional[str] = None
+    booking_token: Optional[str] = None
+    departure_token: Optional[str] = None
+    is_best_flight: bool = False
+
+
 # ── Service availability metadata ─────────────────────────────────────────────
 
 class ServiceStatus(BaseModel):
@@ -131,6 +154,7 @@ class ServiceStatus(BaseModel):
     hotels:   bool = False
     buses:    bool = False
     trains:   bool = False
+    flights:  bool = False
     route:    bool = False
     # New services added here with False default — never breaks callers
 
@@ -168,14 +192,14 @@ class TripContext(BaseModel):
     outbound_trains: list[TrainContext] = Field(default_factory=list)
     return_trains:   list[TrainContext] = Field(default_factory=list)
 
+    # ── Transport — Flight ────────────────────────────────────────────────
+    outbound_flights: list[FlightContext] = Field(default_factory=list)
+    return_flights:   list[FlightContext] = Field(default_factory=list)
+    flights:          list[FlightContext] = Field(default_factory=list)
+
     # ── Route / Distance ──────────────────────────────────────────────────
     route: Optional[RouteContext] = None
 
-    # ── Future domains — add here without breaking contract ───────────────
-    # restaurants:  Optional[list[RestaurantContext]] = None
-    # flights:      Optional[list[FlightContext]]     = None
-    # weather:      Optional[WeatherContext]          = None
-    # activities:   Optional[list[ActivityContext]]   = None
-
     # ── Service availability metadata ─────────────────────────────────────
     service_status: ServiceStatus = Field(default_factory=ServiceStatus)
+

@@ -15,6 +15,8 @@ from fastapi import APIRouter, HTTPException
 
 from app.agents.base import AgentError
 from app.agents.planning_agent import PlanningAgent
+from app.business.itinerary_validator import ItineraryValidator
+from app.clients.flight_client import FlightClient
 from app.clients.hotel_client import HotelClient
 from app.clients.route_client import RouteClient
 from app.clients.tourism_client import TourismClient
@@ -39,8 +41,10 @@ _orchestrator = TripOrchestrator(
     buses=BusClient(),
     trains=TrainClient(),
     route=RouteClient(),
+    flights=FlightClient(),
 )
 
+_validator = ItineraryValidator()
 _agent: PlanningAgent | None = None
 
 
@@ -119,5 +123,11 @@ async def plan(trip: TripRequest) -> PlanResponse:
             status_code=500,
             detail="An unexpected error occurred during planning.",
         )
+
+    # ── Step 3: Validate choices and calculate costs ──────────────────────
+    try:
+        itinerary = _validator.validate_and_calculate_costs(itinerary, context)
+    except Exception as exc:
+        logger.warning("Cost calculation / validation warning: %s", exc)
 
     return itinerary

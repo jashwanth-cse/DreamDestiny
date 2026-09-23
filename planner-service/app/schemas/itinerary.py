@@ -41,6 +41,10 @@ class Activity(BaseModel):
         default=None,
         description="Optional visit tip or reasoning. Must not contain invented facts.",
     )
+    estimated_cost: Optional[float] = Field(
+        default=None,
+        description="Estimated entry fee or activity cost in INR.",
+    )
 
 
 # ── Transport decision ────────────────────────────────────────────────────────
@@ -65,10 +69,10 @@ class TransportDecision(BaseModel):
     )
     mode: str = Field(
         ...,
-        description="Chosen mode: 'train' or 'bus'.",
+        description="Chosen mode: 'train', 'bus', or 'flight'.",
     )
 
-    # ── Train fields (null for bus legs) ─────────────────────────────────────
+    # ── Train fields (null for bus/flight legs) ──────────────────────────────
     train_number: Optional[str] = Field(
         default=None,
         description="Exact train_number from TripContext outbound_trains / return_trains.",
@@ -78,7 +82,7 @@ class TransportDecision(BaseModel):
         description="Exact train_name from TripContext. Do not invent or abbreviate.",
     )
 
-    # ── Bus fields (null for train legs) ─────────────────────────────────────
+    # ── Bus fields (null for train/flight legs) ──────────────────────────────
     operator_name: Optional[str] = Field(
         default=None,
         description="Exact operator_name from TripContext outbound_buses / return_buses.",
@@ -86,6 +90,20 @@ class TransportDecision(BaseModel):
     bus_type: Optional[str] = Field(
         default=None,
         description="Exact bus_type from TripContext, e.g. 'AC Sleeper (2+1)'.",
+    )
+
+    # ── Flight fields (null for train/bus legs) ─────────────────────────────
+    flight_id: Optional[str] = Field(
+        default=None,
+        description="Exact flight_id from TripContext outbound_flights / return_flights.",
+    )
+    airline: Optional[str] = Field(
+        default=None,
+        description="Exact airline name from TripContext, e.g. 'IndiGo', 'Air India'.",
+    )
+    flight_number: Optional[str] = Field(
+        default=None,
+        description="Exact flight_number from TripContext, e.g. '6E 479'.",
     )
 
     # ── Schedule (copy from pre-filtered payload — do NOT compute) ────────────
@@ -149,6 +167,14 @@ class HotelDecision(BaseModel):
         default=None,
         description="Why this hotel was selected (budget fit, rating, etc.).",
     )
+    price_per_night: Optional[float] = Field(
+        default=None,
+        description="Price per night from context in INR.",
+    )
+    price_total: Optional[float] = Field(
+        default=None,
+        description="Total price for all nights in INR.",
+    )
 
 
 # ── Day plan ──────────────────────────────────────────────────────────────────
@@ -185,6 +211,15 @@ class ItinerarySummary(BaseModel):
     budget_level: str = Field(description="low | medium | high")
 
 
+class CostBreakdown(BaseModel):
+    """Estimated cost calculation for the trip."""
+    transport_cost: float = Field(default=0.0, description="Total transport cost (outbound + return for all travelers)")
+    hotel_cost: float = Field(default=0.0, description="Total hotel accommodation cost for all nights")
+    activities_estimated_cost: float = Field(default=0.0, description="Estimated activities cost")
+    currency: str = Field(default="INR", description="Currency code")
+    total_cost: float = Field(default=0.0, description="Overall total estimated trip cost")
+
+
 # ── Top-level itinerary ───────────────────────────────────────────────────────
 
 class Itinerary(BaseModel):
@@ -213,6 +248,14 @@ class Itinerary(BaseModel):
     days: list[DayPlan] = Field(
         default_factory=list,
         description="Day-by-day activity plans.",
+    )
+    cost_breakdown: Optional[CostBreakdown] = Field(
+        default=None,
+        description="Validated cost calculation (transport + accommodation).",
+    )
+    total_cost: Optional[float] = Field(
+        default=None,
+        description="Total estimated cost in INR.",
     )
     planning_notes: Optional[str] = Field(
         default=None,

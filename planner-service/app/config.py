@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     transport_bus_service_url: str = "http://localhost:8004"
     transport_train_service_url: str = "http://localhost:8005"
     transport_flight_service_url: str = "http://localhost:8006"
+    flight_service_url: str = "http://localhost:8006"
     hotel_service_url: str = "http://localhost:8002"
     route_service_url: str = "http://localhost:8003"
 

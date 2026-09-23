@@ -43,8 +43,8 @@ TRIP_REQUEST = {
         #                  "SL" (Sleeper)  | "2S" (Second Sitting) | "GN" (General)
         #                  "any" or null   -> show all available classes
         "transport": {
-            "mode": "train",
-            "berth_preference": "3A"
+            "mode": "flight",
+            "berth_preference": "any"
         },
 
         # Hotel category: "budget" | "mid_range" | "luxury" | "any"
@@ -98,7 +98,15 @@ def print_transport_block(label, t):
         return
     print()
     print("  " + label)
-    if t.get("mode") == "train":
+    if t.get("mode") == "flight":
+        print("    Flight %s (%s) - %s" % (t.get("flight_number", "?"), t.get("flight_id", "?"), t.get("airline", "?")))
+        print("    Departs %s @ %s" % (t.get("departure_date", ""), t.get("departure_time", "?")))
+        print("    Arrives %s @ %s" % (t.get("arrival_date", ""), t.get("arrival_time", "?")))
+        print("    Class: %s | Fare: Rs.%s/person" % (
+            t.get("travel_class", "?"),
+            t.get("fare_per_person", "?")
+        ))
+    elif t.get("mode") == "train":
         print("    %s - %s" % (t.get("train_number", "?"), t.get("train_name", "?")))
         print("    Departs %s @ %s" % (t.get("departure_date", ""), t.get("departure_time", "?")))
         print("    Arrives %s @ %s" % (t.get("arrival_date", ""), t.get("arrival_time", "?")))
@@ -165,6 +173,18 @@ def print_itinerary(res):
         for leg in day.get("transport", []):
             print("       [TRANSPORT] %s - %s" % (leg.get("mode"), leg.get("leg", "")))
 
+    cb = res.get("cost_breakdown")
+    if cb:
+        print()
+        print("  COST BREAKDOWN (%s)" % cb.get("currency", "INR"))
+        print("    Transport Cost  : Rs. %s" % cb.get("transport_cost", 0))
+        print("    Hotel Cost      : Rs. %s" % cb.get("hotel_cost", 0))
+        print("    Activities Est. : Rs. %s" % cb.get("activities_estimated_cost", 0))
+        print("    -----------------------------------------")
+        print("    TOTAL TRIP COST : Rs. %s" % cb.get("total_cost", 0))
+    elif res.get("total_cost"):
+        print("\n  TOTAL TRIP COST : Rs. %s" % res.get("total_cost"))
+
     notes = res.get("planning_notes")
     if notes:
         print()
@@ -183,18 +203,29 @@ def print_context(res):
     print("=" * 65)
     print("  RAW TRIP CONTEXT  (no LLM)")
     print("=" * 65)
-    print("  Service status : %s" % status)
-    print("  Attractions    : %d" % len(ctx.get("attractions", [])))
-    print("  Hotels         : %d" % len(ctx.get("hotels", [])))
-    print("  Outbound trains: %d" % len(ctx.get("outbound_trains", [])))
-    print("  Return  trains : %d" % len(ctx.get("return_trains", [])))
-    print("  Outbound buses : %d" % len(ctx.get("outbound_buses", [])))
-    print("  Return  buses  : %d" % len(ctx.get("return_buses", [])))
+    print("  Service status   : %s" % status)
+    print("  Attractions      : %d" % len(ctx.get("attractions", [])))
+    print("  Hotels           : %d" % len(ctx.get("hotels", [])))
+    print("  Outbound trains  : %d" % len(ctx.get("outbound_trains", [])))
+    print("  Return  trains   : %d" % len(ctx.get("return_trains", [])))
+    print("  Outbound buses   : %d" % len(ctx.get("outbound_buses", [])))
+    print("  Return  buses    : %d" % len(ctx.get("return_buses", [])))
+    print("  Outbound flights : %d" % len(ctx.get("outbound_flights", [])))
+    print("  Return  flights  : %d" % len(ctx.get("return_flights", [])))
     route = ctx.get("route")
     if route:
-        print("  Route distance : %s km" % route.get("distance_km"))
+        print("  Route distance   : %s km" % route.get("distance_km"))
         for r in route.get("routes", []):
             print("    %-12s -> %s min" % (r.get("mode"), r.get("duration_minutes")))
+    print()
+    if ctx.get("outbound_flights"):
+        print("  Top Outbound Flights:")
+        for f in ctx.get("outbound_flights", [])[:3]:
+            print("    %s %s (%s) | %s -> %s | Rs.%s" % (
+                f.get("airline"), f.get("flight_number"), f.get("flight_id"),
+                f.get("departure_time"), f.get("arrival_time"), f.get("price")
+            ))
+        print()
     print()
     print("  Top Attractions:")
     for a in ctx.get("attractions", [])[:5]:
@@ -243,9 +274,12 @@ def main():
     else:
         print_itinerary(res)
 
-    dump = input("Dump full JSON? (y/N): ").strip().lower()
-    if dump == "y":
-        print(json.dumps(res, indent=2, ensure_ascii=False))
+    try:
+        dump = input("Dump full JSON? (y/N): ").strip().lower()
+        if dump == "y":
+            print(json.dumps(res, indent=2, ensure_ascii=False))
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 if __name__ == "__main__":
