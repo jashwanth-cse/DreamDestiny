@@ -1,163 +1,175 @@
 """
 Airport and City Code Resolver.
+===============================
+Resolves city names, aliases, and 3-letter IATA codes into validated
+IATA airport codes and official airport names using the preprocessed
+global dataset `data/airports.json`.
 
-Maps city names, state capitals, and airport names to standard 3-letter IATA airport codes
-required by SerpApi Google Flights API.
-
-Examples:
-    "Chennai"      → "MAA" (Chennai International Airport)
-    "Coimbatore"   → "CJB" (Coimbatore International Airport)
-    "Delhi"        → "DEL" (Indira Gandhi International Airport)
-    "MAA"          → "MAA" (Direct 3-letter IATA passthrough)
+Performance Contract:
+  - Loads generated JSON once into memory at startup.
+  - O(1) dictionary lookups for IATA codes and city names.
+  - Never parses raw CSV files at runtime.
+  - Backward-compatible with static nearest-airport overrides (e.g. Rajapalayam -> IXM).
 """
 
-from typing import Dict, Tuple, Optional
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+import unicodedata
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 from app.exceptions import AirportNotFoundError
 
+logger = logging.getLogger(__name__)
 
-# Comprehensive mapping of major Indian and global cities to (IATA_CODE, AIRPORT_NAME)
-AIRPORT_DATABASE: Dict[str, Tuple[str, str]] = {
-    # ── Tamil Nadu ────────────────────────────────────────────────────────────
-    "chennai": ("MAA", "Chennai International Airport"),
-    "madras": ("MAA", "Chennai International Airport"),
-    "coimbatore": ("CJB", "Coimbatore International Airport"),
-    "madurai": ("IXM", "Madurai Airport"),
-    "trichy": ("TRZ", "Tiruchirappalli International Airport"),
-    "tiruchirappalli": ("TRZ", "Tiruchirappalli International Airport"),
-    "salem": ("SXV", "Salem Airport"),
-    "tuticorin": ("TCR", "Tuticorin Airport"),
-    "thoothukudi": ("TCR", "Tuticorin Airport"),
+# Fallback nearest-airport mappings for towns without their own airport
+STATIC_NEAREST_AIRPORTS: Dict[str, Tuple[str, str]] = {
     "rajapalayam": ("IXM", "Madurai Airport (Nearest to Rajapalayam)"),
     "tirunelveli": ("TCR", "Tuticorin Airport (Nearest to Tirunelveli)"),
-    "kanyakumari": ("TRV", "Trivandrum International Airport (Nearest to Kanyakumari)"),
-
-    # ── Major Indian Metros ───────────────────────────────────────────────────
-    "delhi": ("DEL", "Indira Gandhi International Airport"),
-    "new delhi": ("DEL", "Indira Gandhi International Airport"),
-    "mumbai": ("BOM", "Chhatrapati Shivaji Maharaj International Airport"),
-    "bombay": ("BOM", "Chhatrapati Shivaji Maharaj International Airport"),
-    "bangalore": ("BLR", "Kempegowda International Airport"),
-    "bengaluru": ("BLR", "Kempegowda International Airport"),
-    "kolkata": ("CCU", "Netaji Subhash Chandra Bose International Airport"),
-    "calcutta": ("CCU", "Netaji Subhash Chandra Bose International Airport"),
-    "hyderabad": ("HYD", "Rajiv Gandhi International Airport"),
-    "secunderabad": ("HYD", "Rajiv Gandhi International Airport"),
-
-    # ── Kerala & Karnataka ───────────────────────────────────────────────────
-    "kochi": ("COK", "Cochin International Airport"),
-    "cochin": ("COK", "Cochin International Airport"),
-    "ernakulam": ("COK", "Cochin International Airport"),
-    "trivandrum": ("TRV", "Thiruvananthapuram International Airport"),
-    "thiruvananthapuram": ("TRV", "Thiruvananthapuram International Airport"),
-    "calicut": ("CCJ", "Calicut International Airport"),
-    "kozhikode": ("CCJ", "Calicut International Airport"),
-    "kannur": ("CNN", "Kannur International Airport"),
-    "mangalore": ("IXE", "Mangaluru International Airport"),
-    "mangaluru": ("IXE", "Mangaluru International Airport"),
-    "mysore": ("MYQ", "Mysuru Airport"),
-    "mysuru": ("MYQ", "Mysuru Airport"),
-    "hubli": ("HBX", "Hubballi Airport"),
-    "belgaum": ("IXG", "Belagavi Airport"),
-
-    # ── Andhra Pradesh & Telangana ───────────────────────────────────────────
-    "visakhapatnam": ("VTZ", "Visakhapatnam Airport"),
-    "vizag": ("VTZ", "Visakhapatnam Airport"),
-    "vijayawada": ("VGA", "Vijayawada Airport"),
-    "tirupati": ("TIR", "Tirupati Airport"),
-    "rajahmundry": ("RJA", "Rajahmundry Airport"),
-    "cuddapah": ("CDP", "Kadapa Airport"),
-    "kadapa": ("CDP", "Kadapa Airport"),
-
-    # ── West & Central India ─────────────────────────────────────────────────
-    "goa": ("GOI", "Dabolim Airport"),
-    "mopa": ("GOX", "Manohar International Airport"),
-    "pune": ("PNQ", "Pune International Airport"),
-    "ahmedabad": ("AMD", "Sardar Vallabhbhai Patel International Airport"),
-    "surat": ("STV", "Surat Airport"),
-    "vadodara": ("BDQ", "Vadodara Airport"),
-    "baroda": ("BDQ", "Vadodara Airport"),
-    "rajkot": ("RAJ", "Rajkot Airport"),
-    "bhopal": ("BHO", "Raja Bhoj Airport"),
-    "indore": ("IDR", "Devi Ahilyabai Holkar Airport"),
-    "nagpur": ("NAG", "Dr. Babasaheb Ambedkar International Airport"),
-    "jabalpur": ("JLR", "Jabalpur Airport"),
-    "gwalior": ("GWL", "Gwalior Airport"),
-    "aurangabad": ("IXU", "Chhatrapati Sambhajinagar Airport"),
-
-    # ── North & East India ───────────────────────────────────────────────────
-    "jaipur": ("JAI", "Jaipur International Airport"),
-    "jodhpur": ("JDH", "Jodhpur Airport"),
-    "udaipur": ("UDR", "Maharana Pratap Airport"),
-    "lucknow": ("LKO", "Chaudhary Charan Singh International Airport"),
-    "varanasi": ("VNS", "Lal Bahadur Shastri International Airport"),
-    "agra": ("AGR", "Agra Airport"),
-    "amritsar": ("ATQ", "Sri Guru Ram Dass Jee International Airport"),
-    "chandigarh": ("IXC", "Shaheed Bhagat Singh International Airport"),
-    "dehradun": ("DED", "Dehradun Airport"),
-    "srinagar": ("SXR", "Sheikh ul-Alam International Airport"),
-    "jammu": ("IXJ", "Jammu Airport"),
-    "leh": ("IXL", "Kushok Bakula Rimpochee Airport"),
-    "patna": ("PAT", "Jay Prakash Narayan Airport"),
-    "ranchi": ("IXR", "Birsa Munda Airport"),
-    "bhubaneswar": ("BBI", "Biju Patnaik International Airport"),
-    "raipur": ("RPR", "Swami Vivekananda Airport"),
-    "guwahati": ("GAU", "Lokpriya Gopinath Bordoloi International Airport"),
-    "bagdogra": ("IXB", "Bagdogra International Airport"),
-    "port blair": ("IXZ", "Veer Savarkar International Airport"),
-
-    # ── Major International Hubs ─────────────────────────────────────────────
-    "dubai": ("DXB", "Dubai International Airport"),
-    "singapore": ("SIN", "Singapore Changi Airport"),
-    "london": ("LHR", "London Heathrow Airport"),
-    "bangkok": ("BKK", "Suvarnabhumi Airport"),
-    "kuala lumpur": ("KUL", "Kuala Lumpur International Airport"),
-    "doha": ("DOH", "Hamad International Airport"),
-    "new york": ("JFK", "John F. Kennedy International Airport"),
-    "san francisco": ("SFO", "San Francisco International Airport"),
-    "paris": ("CDG", "Charles de Gaulle Airport"),
-    "frankfurt": ("FRA", "Frankfurt Airport"),
-    "tokyo": ("HND", "Tokyo Haneda Airport"),
+    "kanyakumari": ("TRV", "Thiruvananthapuram International Airport (Nearest to Kanyakumari)"),
+    "ooty": ("CJB", "Coimbatore International Airport (Nearest to Ooty)"),
+    "kodaikanal": ("IXM", "Madurai Airport (Nearest to Kodaikanal)"),
+    "pondicherry": ("MAA", "Chennai International Airport (Nearest Major Airport)"),
 }
+
+IATA_RE = re.compile(r"^[A-Z]{3}$")
+
+
+def _strip_accents(s: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _find_dataset_path() -> Optional[Path]:
+    """Finds airports.json across common project paths."""
+    env_path = os.environ.get("AIRPORTS_DATA_PATH")
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent / "data" / "airports.json",
+        Path("data/airports.json"),
+        Path("../data/airports.json"),
+        Path("../../data/airports.json"),
+        Path("/app/data/airports.json"),
+    ]
+
+    for p in candidates:
+        if p.exists():
+            return p.resolve()
+    return None
 
 
 class AirportResolver:
     """
-    Resolves input strings (city name, state, airport title, or IATA code)
-    into a validated 3-letter IATA code and official airport name.
+    In-memory airport resolver backed by preprocessed airports.json.
     """
 
-    @staticmethod
-    def resolve(query: str) -> Tuple[str, str]:
+    _airports: Dict[str, Dict[str, Any]] = {}
+    _by_city: Dict[str, List[str]] = {}
+    _by_country: Dict[str, List[str]] = {}
+    _by_region: Dict[str, List[str]] = {}
+    _initialized: bool = False
+
+    def __init__(self, dataset_path: Optional[Path] = None) -> None:
+        AirportResolver.load_dataset(dataset_path)
+
+    @classmethod
+    def load_dataset(cls, dataset_path: Optional[Path] = None) -> None:
+        """Loads airports.json once into class-level memory."""
+        if cls._initialized and not dataset_path:
+            return
+
+        target_path = dataset_path or _find_dataset_path()
+        if not target_path or not target_path.exists():
+            logger.warning("airports.json not found. Using static database fallback.")
+            return
+
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            cls._airports = data.get("airports", {})
+            indexes = data.get("indexes", {})
+            cls._by_city = indexes.get("by_city", {})
+            cls._by_country = indexes.get("by_country", {})
+            cls._by_region = indexes.get("by_region", {})
+            cls._initialized = True
+            logger.info(
+                "AirportResolver loaded %d airports and %d indexed cities from %s",
+                len(cls._airports),
+                len(cls._by_city),
+                target_path.name,
+            )
+        except Exception as exc:
+            logger.error("Failed to load airports.json from %s: %s", target_path, exc)
+
+    @classmethod
+    def resolve(cls, query: str) -> Tuple[str, str]:
         """
-        Resolves query to (iata_code, airport_name).
+        Resolves query (IATA code, city name, alias) to (iata_code, airport_name).
         Raises AirportNotFoundError if query cannot be resolved.
         """
+        cls.load_dataset()
+
         cleaned = query.strip()
         if not cleaned:
             raise AirportNotFoundError("Origin or destination query cannot be empty")
 
         upper = cleaned.upper()
 
-        # 1. Direct 3-letter uppercase IATA code check (e.g. 'MAA', 'DEL', 'JFK')
-        if len(upper) == 3 and upper.isalpha():
-            # Check if we have an official name for it
-            for city, (code, name) in AIRPORT_DATABASE.items():
-                if code == upper:
-                    return code, name
-            # Accept valid IATA format even if not in local database
+        # 1. Direct 3-letter IATA code check
+        if IATA_RE.match(upper):
+            if upper in cls._airports:
+                return upper, cls._airports[upper]["name"]
+            # Accept valid IATA format as passthrough even if unlisted
             return upper, f"Airport ({upper})"
 
-        # 2. Database lookup by normalized city/airport query
-        normalized = cleaned.lower()
-        if normalized in AIRPORT_DATABASE:
-            return AIRPORT_DATABASE[normalized]
+        # 2. Check static nearest-airport override
+        normalized = _strip_accents(cleaned).lower()
+        if normalized in STATIC_NEAREST_AIRPORTS:
+            return STATIC_NEAREST_AIRPORTS[normalized]
 
-        # 3. Partial / substring match in database
-        for city, (code, name) in AIRPORT_DATABASE.items():
-            if city in normalized or normalized in city or normalized in name.lower():
-                return code, name
+        # 3. Lookup in by_city index
+        if normalized in cls._by_city:
+            iata_list = cls._by_city[normalized]
+            if iata_list:
+                primary_iata = iata_list[0]
+                airport_name = cls._airports.get(primary_iata, {}).get("name", f"Airport ({primary_iata})")
+                return primary_iata, airport_name
+
+        # 4. Substring / partial match across airports
+        for iata, apt in cls._airports.items():
+            apt_city = apt.get("normalized_city", "")
+            apt_name = apt.get("name", "").lower()
+            if normalized == apt_city or normalized in apt_name:
+                return iata, apt.get("name", f"Airport ({iata})")
 
         raise AirportNotFoundError(
             f"Could not resolve '{query}' to an airport code. "
             "Please provide a recognized city name or 3-letter IATA code (e.g. 'Chennai' or 'MAA')."
         )
+
+    @classmethod
+    def get_airport(cls, iata: str) -> Optional[Dict[str, Any]]:
+        """Retrieve full normalized airport record by IATA code."""
+        cls.load_dataset()
+        return cls._airports.get(iata.upper())
+
+    @classmethod
+    def find_by_country(cls, iso_country: str) -> List[Dict[str, Any]]:
+        """Retrieve all airports in a given country code (e.g. 'IN', 'US')."""
+        cls.load_dataset()
+        codes = cls._by_country.get(iso_country.upper(), [])
+        return [cls._airports[c] for c in codes if c in cls._airports]
+
+    @classmethod
+    def find_by_region(cls, iso_region: str) -> List[Dict[str, Any]]:
+        """Retrieve all airports in a given region code (e.g. 'IN-TN', 'US-CA')."""
+        cls.load_dataset()
+        codes = cls._by_region.get(iso_region.upper(), [])
+        return [cls._airports[c] for c in codes if c in cls._airports]
