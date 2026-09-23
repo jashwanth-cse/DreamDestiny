@@ -80,10 +80,26 @@ class Flight(BaseModel):
 
 class FlightSearchData(BaseModel):
     """Payload data returned in FlightSearchResponse."""
-    origin: str = Field(..., description="Origin IATA code")
-    origin_name: Optional[str] = Field(default=None, description="Origin city or airport name")
-    destination: str = Field(..., description="Destination IATA code")
-    destination_name: Optional[str] = Field(default=None, description="Destination city or airport name")
+    origin: str = Field(..., description="Resolved origin IATA code")
+    origin_name: Optional[str] = Field(default=None, description="Resolved origin airport name")
+    origin_city: Optional[str] = Field(default=None, description="Original city name as queried")
+    origin_airport_distance_km: Optional[float] = Field(
+        default=None,
+        description=(
+            "Distance (km) from the queried origin city to the resolved airport. "
+            "null when the city has its own airport or the query was a direct IATA code."
+        ),
+    )
+    destination: str = Field(..., description="Resolved destination IATA code")
+    destination_name: Optional[str] = Field(default=None, description="Resolved destination airport name")
+    destination_city: Optional[str] = Field(default=None, description="Original city name as queried")
+    destination_airport_distance_km: Optional[float] = Field(
+        default=None,
+        description=(
+            "Distance (km) from the queried destination city to the resolved airport. "
+            "null when the city has its own airport or the query was a direct IATA code."
+        ),
+    )
     outbound_date: str = Field(..., description="Outbound date (YYYY-MM-DD)")
     return_date: Optional[str] = Field(default=None, description="Return date if round-trip")
     trip_type: str = Field(default="one_way", description="'one_way' or 'round_trip'")

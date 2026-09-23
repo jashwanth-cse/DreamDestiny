@@ -143,6 +143,29 @@ class FlightContext(BaseModel):
     is_best_flight: bool = False
 
 
+class FlightResolutionContext(BaseModel):
+    """
+    Airport resolution metadata for origin and destination.
+    Populated when geo-based nearest airport lookup was used.
+    Passed to the planning agent so Gemini can mention ground transport
+    to/from the airport in the itinerary.
+    """
+    origin_city: Optional[str] = None
+    origin_iata: Optional[str] = None
+    origin_airport_name: Optional[str] = None
+    origin_airport_distance_km: Optional[float] = Field(
+        default=None,
+        description="Distance from origin city to nearest airport (km). null if city has its own airport."
+    )
+    destination_city: Optional[str] = None
+    destination_iata: Optional[str] = None
+    destination_airport_name: Optional[str] = None
+    destination_airport_distance_km: Optional[float] = Field(
+        default=None,
+        description="Distance from destination city to nearest airport (km). null if city has its own airport."
+    )
+
+
 # ── Service availability metadata ─────────────────────────────────────────────
 
 class ServiceStatus(BaseModel):
@@ -196,6 +219,10 @@ class TripContext(BaseModel):
     outbound_flights: list[FlightContext] = Field(default_factory=list)
     return_flights:   list[FlightContext] = Field(default_factory=list)
     flights:          list[FlightContext] = Field(default_factory=list)
+
+    # Geo-based airport resolution metadata (nearest airport distances)
+    # Populated by orchestrator from FlightClient response.
+    flight_resolution: Optional[FlightResolutionContext] = None
 
     # ── Route / Distance ──────────────────────────────────────────────────
     route: Optional[RouteContext] = None

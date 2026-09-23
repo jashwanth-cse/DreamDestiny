@@ -26,7 +26,7 @@ from typing import Optional
 from pydantic import ValidationError
 
 from app.agents.base import BaseAgent, AgentError
-from app.schemas.context import TripContext, TrainContext, BusContext, HotelContext, FlightContext
+from app.schemas.context import TripContext, TrainContext, BusContext, HotelContext, FlightContext, FlightResolutionContext
 from app.schemas.itinerary import Itinerary
 from app.services.llm.gemini_client import GeminiClient, GeminiError
 from app.services.llm.prompts import PLANNING_SYSTEM_PROMPT
@@ -525,6 +525,22 @@ def _build_context_payload(context: TripContext) -> dict:
                 ],
             }
             if context.route else None
+        ),
+
+        # Nearest-airport metadata (populated when city has no direct airport)
+        # Gives the LLM context to mention ground transport to/from the airport.
+        "flight_resolution": (
+            {
+                "origin_city":                    context.flight_resolution.origin_city,
+                "origin_iata":                    context.flight_resolution.origin_iata,
+                "origin_airport_name":            context.flight_resolution.origin_airport_name,
+                "origin_airport_distance_km":     context.flight_resolution.origin_airport_distance_km,
+                "destination_city":               context.flight_resolution.destination_city,
+                "destination_iata":               context.flight_resolution.destination_iata,
+                "destination_airport_name":       context.flight_resolution.destination_airport_name,
+                "destination_airport_distance_km": context.flight_resolution.destination_airport_distance_km,
+            }
+            if context.flight_resolution else None
         ),
     }
 

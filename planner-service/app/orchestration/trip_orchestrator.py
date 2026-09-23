@@ -29,7 +29,7 @@ from app.business.preferences import (
     resolve_tourism_params,
     resolve_transport_params,
 )
-from app.schemas.context import ServiceStatus, TripContext
+from app.schemas.context import ServiceStatus, TripContext, FlightResolutionContext
 from app.schemas.request import TripRequest
 
 logger = logging.getLogger(__name__)
@@ -132,23 +132,43 @@ class TripOrchestrator:
         travelers: int,
         travel_class: Optional[str] = "economy",
     ):
+        """
+        Fetch flights from the provider.
+        Returns (flights, FlightResolutionContext | None).
+
+        Uses get_flights_with_resolution() when available (FlightClient v2),
+        otherwise falls back to plain get_flights().
+        """
         if not self._flights:
-            return []
+            return [], None
+
         key = f"{origin}:{destination}:{outbound_date}:{travelers}:{travel_class}"
         now = time.time()
         if key in self._cache_flights and now < self._cache_flights[key][0]:
             logger.info("Cache HIT: Flights (%s -> %s)", origin, destination)
             return self._cache_flights[key][1]
 
-        data = await self._flights.get_flights(
-            origin=origin,
-            destination=destination,
-            outbound_date=outbound_date,
-            travelers=travelers,
-            travel_class=travel_class,
-        )
-        self._cache_flights[key] = (now + self._cache_ttl, data)
-        return data
+        # Use enhanced method if available (FlightClient v2)
+        if hasattr(self._flights, "get_flights_with_resolution"):
+            result = await self._flights.get_flights_with_resolution(
+                origin=origin,
+                destination=destination,
+                outbound_date=outbound_date,
+                travelers=travelers,
+                travel_class=travel_class,
+            )
+        else:
+            flights = await self._flights.get_flights(
+                origin=origin,
+                destination=destination,
+                outbound_date=outbound_date,
+                travelers=travelers,
+                travel_class=travel_class,
+            )
+            result = (flights, None)
+
+        self._cache_flights[key] = (now + self._cache_ttl, result)
+        return result
 
     # ── Main Orchestration ────────────────────────────────────────────────────
 
@@ -172,8 +192,8 @@ class TripOrchestrator:
             return_buses,
             outbound_trains,
             return_trains,
-            outbound_flights,
-            return_flights,
+            outbound_flights_result,
+            return_flights_result,
             route,
         ) = await asyncio.gather(
             self._get_tourism(tourism_p.city, tourism_p.limit),
@@ -186,6 +206,13 @@ class TripOrchestrator:
             self._get_flights(flight_p.destination, flight_p.origin, flight_p.return_date, flight_p.travelers, flight_p.travel_class),
             self._get_route(route_p.origin, route_p.destination),
         )
+
+        # ── Unpack flight tuples (flights, resolution) ────────────────────
+        outbound_flights, outbound_resolution = outbound_flights_result
+        return_flights, return_resolution = return_flights_result
+
+        # Merge resolution metadata: outbound takes priority, return fills gaps
+        flight_resolution: Optional[FlightResolutionContext] = outbound_resolution or return_resolution
 
         # ── Service availability tracking ─────────────────────────────────
         status = ServiceStatus(
@@ -209,6 +236,7 @@ class TripOrchestrator:
             outbound_flights=outbound_flights,
             return_flights=return_flights,
             flights=outbound_flights + return_flights,
+            flight_resolution=flight_resolution,
             route=route,
             service_status=status,
         )
