@@ -1,34 +1,65 @@
 """
 Station Search Service
+======================
+Resolves city names, station names, and IRCTC station codes to station records
+used for train searches.
 
-Converts station names or city names to Indian Railway station codes.
-Example:
-    "Rajapalayam"  → "RJPM"
-    "Chennai"      → "MAS"
-    "Bengaluru"    → "SBC"
+Resolution priority (fast → slow):
+  1. Direct station code passthrough (2–5 letter uppercase, e.g. "MAS")     [< 0.01 ms]
+  2. Pre-seeded instant table (100+ major cities/junctions)                  [< 0.01 ms]
+  3. LOCAL railway_stations.json resolver (8,600+ IRCTC stations)            [< 1 ms   ]
+     3a. Exact normalized name match
+     3b. Alias match (station_aliases.json)
+     3c. High-confidence deterministic fuzzy match (Jaccard ≥ 0.82)
+  4. External Ixigo Station API (network, cached in LRU)                     [~400 ms  ]
+     - Used when the local resolver returns NOT_FOUND or AMBIGUOUS.
 
-Performance:
-  - Pre-seeded lookup table for 100+ major Indian stations and city aliases (0.001 ms).
-  - In-memory thread-safe LRU cache for dynamic query results.
-  - Connection-pooled fallback to the Ixigo Station API for obscure / rural stations.
+Design rules:
+  - Steps 1–3 are zero-network and sub-millisecond.
+  - Step 4 fires only when all local steps fail.
+  - The external API remains unchanged; nothing removes it.
+  - Metrics (local_hit / local_miss / ambiguous / api_fallback) are logged at INFO.
+  - Thread-safe: the local resolver index is read-only after startup load.
+
+Lookup metrics emitted at INFO level per request:
+  [station_resolver] local_hit   (exact)   'sivakasi'  → SVKS  (0.042 ms)
+  [station_resolver] local_hit   (code)    'MAS'       → MAS   (0.003 ms)
+  [station_resolver] local_miss            'unknownx'           (0.021 ms) → api_fallback
+  [station_resolver] ambiguous             'karur'              (0.053 ms) → api_fallback
+  [station_resolver] fuzzy_hit             'sengottai' → SCT   (0.310 ms)
 """
 
-import re
+from __future__ import annotations
+
 import logging
+import re
+import time
 from functools import lru_cache
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import requests
+
 from app.config import config
-from app.utils import parse_station
 from app.exceptions import StationNotFoundError
+from app.resolver.railway_station_resolver import RailwayStationResolver, ResolveStatus
+from app.utils import parse_station
 
 logger = logging.getLogger(__name__)
 
-# Global session for connection pooling
+# ── Global session for connection pooling ─────────────────────────────────────
 _session = requests.Session()
 
-# ── Pre-seeded Top Indian Stations & Hubs (0 ms instant lookup) ───────────────
+# ── Module-level resolver singleton (loaded once at import time) ──────────────
+_resolver = RailwayStationResolver()
+
+def _ensure_resolver_loaded() -> None:
+    """Ensure the resolver dataset is loaded. Called lazily on first use."""
+    if not _resolver._loaded:
+        _resolver.load()
+
+# ── Pre-seeded Top Indian Stations & Hubs (instant 0-latency fast-path) ───────
+# Kept verbatim from the original station_service.py.  This table wins over the
+# JSON dataset for the listed cities, preserving backward-compatible behavior.
 PRESEEDED_STATIONS: Dict[str, Dict[str, Any]] = {
     # ── Metro & Major Hubs ───────────────────────────────────────────────────
     "chennai": {"station_name": "Chennai - All stations", "station_code": "MAS", "latitude": 13.0827, "longitude": 80.2707},
@@ -158,6 +189,11 @@ PRESEEDED_STATIONS: Dict[str, Dict[str, Any]] = {
     "jammu": {"station_name": "Jammu Tawi", "station_code": "JAT", "latitude": 32.7060, "longitude": 74.8800},
 }
 
+# Valid station code pattern
+_CODE_RE = re.compile(r"^[A-Z][A-Z0-9]{1,6}$")
+
+
+# ── External API cache (unchanged from original) ──────────────────────────────
 
 @lru_cache(maxsize=4096)
 def _fetch_from_api_cached(station_name_key: str) -> List[Dict[str, Any]]:
@@ -168,7 +204,7 @@ def _fetch_from_api_cached(station_name_key: str) -> List[Dict[str, Any]]:
     params = {
         "searchFor": "trainstationsLatLon",
         "anchor": "false",
-        "value": station_name_key
+        "value": station_name_key,
     }
 
     try:
@@ -176,12 +212,12 @@ def _fetch_from_api_cached(station_name_key: str) -> List[Dict[str, Any]]:
             config.STATION_API,
             params=params,
             headers=config.STATION_HEADERS,
-            timeout=15
+            timeout=15,
         )
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as e:
-        logger.warning(f"Station API request failed for '{station_name_key}': {e}")
+        logger.warning("Station API request failed for '%s': %s", station_name_key, e)
         return []
 
     stations: List[Dict[str, Any]] = []
@@ -190,98 +226,136 @@ def _fetch_from_api_cached(station_name_key: str) -> List[Dict[str, Any]]:
         if station is None:
             continue
         try:
-            station["latitude"] = float(item.get("lat", 0.0))
+            station["latitude"]  = float(item.get("lat", 0.0))
             station["longitude"] = float(item.get("lon", 0.0))
         except (ValueError, TypeError):
-            station["latitude"] = 0.0
+            station["latitude"]  = 0.0
             station["longitude"] = 0.0
-
         stations.append(station)
 
-    return stations
+    return tuple(stations)   # type: ignore[return-value]  lru_cache needs hashable
 
+
+# ── StationService ────────────────────────────────────────────────────────────
 
 class StationService:
     """
     Ultra-low latency station resolution service.
-    Fast path: Pre-seeded table (0.001 ms).
-    Medium path: In-memory LRU cache (0.001 ms).
-    Slow path (first query for obscure station): Live API call with connection reuse (~0.4s).
+
+    Priority:
+      1. Pre-seeded instant table       (< 0.01 ms)
+      2. Direct station code match      (< 0.01 ms)
+      3. Local JSON resolver            (< 1 ms, zero-network)
+      4. External Ixigo API + LRU cache (~400 ms first call, cached thereafter)
     """
 
-    def __init__(self):
-        self.url = config.STATION_API
+    def __init__(self) -> None:
+        self.url     = config.STATION_API
         self.headers = config.STATION_HEADERS
+        _ensure_resolver_loaded()   # warm the local resolver at construction time
 
     def search(self, station_name: str) -> List[Dict[str, Any]]:
-        """
-        Searches for stations matching a name.
-        """
+        """Search for stations matching a name (returns a list for compatibility)."""
         cleaned = station_name.strip().lower()
         if not cleaned:
             return []
 
-        # 1. Check pre-seeded instant table
+        # 1. Pre-seeded instant table
         if cleaned in PRESEEDED_STATIONS:
             return [PRESEEDED_STATIONS[cleaned]]
 
-        # 2. Check cached API results
-        api_results = _fetch_from_api_cached(cleaned)
-        if api_results:
-            return api_results
+        # 2. Local resolver
+        match = _resolver.resolve(station_name)
+        if not match.needs_api_fallback:
+            rec = match.to_station_dict()
+            return [rec] if rec else []
 
-        return []
+        # 3. External API
+        return list(_fetch_from_api_cached(cleaned))
 
     def get_station_code(self, station_name: str) -> str:
-        """
-        Returns the primary 2-5 letter station code for a given city or station name.
-        """
-        station = self.get_station(station_name)
-        return station["station_code"]
+        """Return primary station code for a given name."""
+        return self.get_station(station_name)["station_code"]
 
     def get_station(self, station_name: str) -> Dict[str, Any]:
         """
-        Returns full station dict: {"station_name", "station_code", "latitude", "longitude"}.
+        Returns full station dict: {station_name, station_code, latitude, longitude, ...}.
+
+        Resolution priority:
+          1. Pre-seeded instant table
+          2. Direct station code passthrough
+          3. Local JSON resolver (exact → alias → fuzzy)
+          4. External Ixigo API (network, cached)
+
+        Raises StationNotFoundError if all steps fail.
         """
-        cleaned = station_name.strip().lower()
+        cleaned = station_name.strip()
         if not cleaned:
             raise StationNotFoundError("Empty station name provided")
 
-        # 1. Instant check in pre-seeded database (0.001 ms)
-        if cleaned in PRESEEDED_STATIONS:
-            return PRESEEDED_STATIONS[cleaned]
+        lower = cleaned.lower()
 
-        # 2. Check if input is ALREADY a valid 2-5 letter uppercase station code
-        upper_code = station_name.strip().upper()
-        if 2 <= len(upper_code) <= 5 and upper_code.isalpha():
+        # ── Step 1: Pre-seeded table (covers all major cities) ───────────────
+        if lower in PRESEEDED_STATIONS:
+            logger.info(
+                "[station_resolver] local_hit (preseeded) '%s' → %s",
+                station_name, PRESEEDED_STATIONS[lower]["station_code"]
+            )
+            return PRESEEDED_STATIONS[lower]
+
+        # ── Step 2: Direct station code passthrough ──────────────────────────
+        upper = cleaned.upper()
+        if _CODE_RE.match(upper):
+            # Check preseeded values first
             for s in PRESEEDED_STATIONS.values():
-                if s["station_code"] == upper_code:
+                if s["station_code"] == upper:
+                    logger.info(
+                        "[station_resolver] local_hit (code→preseeded) '%s' → %s",
+                        station_name, upper
+                    )
                     return s
+            # Try local resolver
+            match = _resolver.resolve(upper)
+            if not match.needs_api_fallback:
+                rec = match.to_station_dict()
+                if rec:
+                    logger.info(
+                        "[station_resolver] local_hit (code) '%s' → %s [%.3f ms]",
+                        station_name, upper, match.latency_ms
+                    )
+                    return rec
 
-        # 3. Dynamic lookup with LRU caching
-        stations = self.search(station_name)
+        # ── Step 3: Local JSON resolver ──────────────────────────────────────
+        match = _resolver.resolve(cleaned)
+
+        if match.status.value == "exact" or match.status.value == "fuzzy":
+            rec = match.to_station_dict()
+            if rec:
+                logger.info(
+                    "[station_resolver] local_hit (%s) '%s' → %s [%.3f ms]",
+                    match.status.value, station_name, match.station_code, match.latency_ms
+                )
+                return rec
+
+        if match.status.value == "ambiguous":
+            logger.info(
+                "[station_resolver] ambiguous '%s' → candidates %s [%.3f ms] → api_fallback",
+                station_name, match.candidates[:5], match.latency_ms
+            )
+            # Fall through to API which may disambiguate via user's exact query string
+
+        if match.status.value == "not_found":
+            logger.info(
+                "[station_resolver] local_miss '%s' [%.3f ms] → api_fallback",
+                station_name, match.latency_ms
+            )
+
+        # ── Step 4: External Ixigo API ───────────────────────────────────────
+        logger.info("[station_resolver] api_fallback for '%s'", station_name)
+        stations = list(_fetch_from_api_cached(lower))
         if not stations:
-            raise StationNotFoundError(f"No station found for '{station_name}'")
-
+            raise StationNotFoundError(
+                f"No station found for '{station_name}'. "
+                "Please provide a valid city name or IRCTC station code (e.g. 'Sivakasi' or 'SVKS')."
+            )
         return stations[0]
-
-
-if __name__ == "__main__":
-    import time
-    service = StationService()
-
-    print("=" * 60)
-    print("  Testing Instant Station Resolution")
-    print("=" * 60)
-
-    test_queries = ["Rajapalayam", "chennai", "bengaluru", "Delhi", "Coimbatore", "Sivakasi", "Agra", "UnknownRuralPlace"]
-
-    for q in test_queries:
-        t0 = time.perf_counter()
-        try:
-            stn = service.get_station(q)
-            t_ms = (time.perf_counter() - t0) * 1000
-            print(f"  Query: {q:20} → {stn['station_code']:6} ({stn['station_name']}) | Latency: {t_ms:.4f} ms")
-        except Exception as e:
-            t_ms = (time.perf_counter() - t0) * 1000
-            print(f"  Query: {q:20} → FAILED ({e}) | Latency: {t_ms:.4f} ms")

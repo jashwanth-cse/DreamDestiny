@@ -92,6 +92,11 @@ services:
     restart: unless-stopped
     ports:
       - "${TRAIN_PORT:-8005}:8005"
+    volumes:
+      # Mount the preprocessed railway station dataset (read-only)
+      - ./data:/app/data:ro
+    environment:
+      - RAILWAY_STATIONS_DATA_PATH=/app/data/railway_stations.json
     networks:
       - dream-destiny-net
     healthcheck:
@@ -110,6 +115,9 @@ services:
     restart: unless-stopped
     ports:
       - "${FLIGHT_PORT:-8006}:8006"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - SERPAPI_API_KEY=${SERPAPI_API_KEY}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}

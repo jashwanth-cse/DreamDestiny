@@ -1,5 +1,6 @@
 import time
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,10 +13,21 @@ from app.exceptions import StationNotFoundError, InvalidRequestError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Warm the local railway station resolver once at startup."""
+    from app.services.station_service import _ensure_resolver_loaded
+    _ensure_resolver_loaded()
+    yield
+    # (no shutdown cleanup needed for the resolver)
+
+
 app = FastAPI(
     title="Transport Service API",
     description="Production-ready FastAPI microservice for searching trains and stations.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS Middleware
