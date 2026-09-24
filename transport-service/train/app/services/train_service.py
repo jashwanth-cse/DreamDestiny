@@ -32,10 +32,10 @@ class TrainService:
     Stateless and thread-safe.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, station_service: Optional[StationService] = None) -> None:
         self.url = config.TRAIN_API
         self.headers = config.TRAIN_HEADERS
-        self.station_service = StationService()
+        self.station_service = station_service or StationService()
 
     def _build_params(self, source_code: str, dest_code: str, journey_date: str) -> Dict[str, str]:
         """Builds query parameters for the Ixigo API request."""
@@ -104,10 +104,10 @@ class TrainService:
             return f"{parts[0]}-{parts[1]}-{parts[2]}"
         return raw
 
-    def search(
+    def search_direct(
         self,
-        source: str,
-        destination: str,
+        source_station: Dict[str, Any],
+        dest_station: Dict[str, Any],
         journey_date: str,
         travel_class: Optional[str] = None,
         sort_by: str = "departure",
@@ -117,21 +117,13 @@ class TrainService:
         quota: str = "GN",
     ) -> Dict[str, Any]:
         """
-        Main entry point to search for trains.
+        Direct search between two already resolved station records.
+        Does not perform fallback resolution.
         """
-        # Normalize date to DD-MM-YYYY format for the provider API
         date_str = self._normalize_journey_date(journey_date)
-
-        # ── Step 0: Resolve stations concurrently (instant for cached/pre-seeded) ──
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            future_src = executor.submit(self.station_service.get_station, source)
-            future_dst = executor.submit(self.station_service.get_station, destination)
-            source_station = future_src.result()
-            dest_station = future_dst.result()
-
         params = self._build_params(source_station["station_code"], dest_station["station_code"], date_str)
         raw_data = self._call_ixigo(params)
-        
+
         payload = raw_data.get("data", {})
         trains_data = payload.get("trainList", [])
         result_type = "direct"
@@ -146,22 +138,16 @@ class TrainService:
             parsed_trains.append(self._parse_train(train, source_station, dest_station))
 
         # ── Step 2: Enrich missing availability (concurrent, before filtering) ─
-        # Determine the classes that will survive class-filtering so we only
-        # fetch live availability for classes the user will actually see.
         target_class = travel_class.upper() if travel_class else None
         self._enrich_availability(parsed_trains, date_str, quota, target_class)
 
         # ── Step 3: Filter, recommend, sort ───────────────────────────────────
         result_trains = []
         for parsed_train in parsed_trains:
-            # Filter classes
             parsed_train["classes"] = self._filter_classes(parsed_train["classes"], travel_class)
-
-            # Re-evaluate lowest fare and recommendation after filtering
             parsed_train["recommended_class"] = self._recommend_class(parsed_train["classes"])
             parsed_train["lowest_fare"] = self._calculate_lowest_fare(parsed_train["classes"])
 
-            # Apply optional filters
             if max_fare is not None and parsed_train["lowest_fare"] > max_fare:
                 continue
             if min_rating is not None and parsed_train["rating"] < min_rating:
@@ -169,11 +155,9 @@ class TrainService:
             if pantry is not None and parsed_train["has_pantry"] != pantry:
                 continue
 
-            # Only include trains that still have matching classes after filter
             if parsed_train["classes"]:
                 result_trains.append(parsed_train)
 
-        # Sort trains
         result_trains = self._sort_trains(result_trains, sort_by)
 
         return {
@@ -183,6 +167,39 @@ class TrainService:
             "total_trains": len(result_trains),
             "trains": result_trains,
         }
+
+    def search(
+        self,
+        source: str,
+        destination: str,
+        journey_date: str,
+        travel_class: Optional[str] = None,
+        sort_by: str = "departure",
+        max_fare: Optional[int] = None,
+        min_rating: Optional[float] = None,
+        pantry: Optional[bool] = None,
+        quota: str = "GN",
+    ) -> Dict[str, Any]:
+        """
+        Main entry point: searches with the 3-level route fallback strategy
+        (Direct -> Division Hub -> State Capital).
+        """
+        from app.services.route_fallback_service import RouteFallbackService
+        fallback_service = RouteFallbackService(
+            station_service=self.station_service,
+            train_service=self,
+        )
+        return fallback_service.search_with_fallback(
+            source=source,
+            destination=destination,
+            journey_date=journey_date,
+            travel_class=travel_class,
+            sort_by=sort_by,
+            max_fare=max_fare,
+            min_rating=min_rating,
+            pantry=pantry,
+            quota=quota,
+        )
 
     # --------------------------------------------------------
     # Private Parsing Helpers

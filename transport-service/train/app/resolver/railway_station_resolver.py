@@ -153,6 +153,10 @@ class StationMatch:
     latency_ms:   float           = 0.0
 
     @property
+    def match_type(self) -> str:
+        return self.status.value
+
+    @property
     def needs_api_fallback(self) -> bool:
         return self.status in (ResolveStatus.NOT_FOUND, ResolveStatus.AMBIGUOUS)
 
@@ -190,11 +194,13 @@ class RailwayStationResolver:
 
     def __init__(self, dataset_path: Optional[Path] = None) -> None:
         self._path: Optional[Path] = dataset_path
-        self._stations:  Dict[str, Dict[str, Any]] = {}
-        self._by_name:   Dict[str, List[str]] = {}    # normalized_name → [codes]
-        self._by_code:   Dict[str, str] = {}           # CODE → CODE
-        self._loaded:    bool = False
-        self._meta:      Dict[str, Any] = {}
+        self._stations:     Dict[str, Dict[str, Any]] = {}
+        self._by_name:      Dict[str, List[str]] = {}       # normalized_name → [codes]
+        self._by_code:      Dict[str, str] = {}              # CODE → CODE
+        self._by_division:  Dict[str, List[Dict[str, Any]]] = {}  # DIVISION → [stations]
+        self._by_state:     Dict[str, List[Dict[str, Any]]] = {}  # STATE → [stations]
+        self._loaded:       bool = False
+        self._meta:         Dict[str, Any] = {}
 
     # ── Dataset loading ──────────────────────────────────────────────────────
 
@@ -225,14 +231,28 @@ class RailwayStationResolver:
         self._by_name  = idx.get("by_normalized_name", {})
         self._by_code  = idx.get("by_code", {})
         self._meta     = data.get("meta", {})
-        self._loaded   = True
+
+        # Build division and state indexes
+        self._by_division = {}
+        self._by_state = {}
+        for stn in self._stations.values():
+            div = (stn.get("division") or "").strip().upper()
+            if div:
+                self._by_division.setdefault(div, []).append(stn)
+            st = (stn.get("state") or "").strip().upper()
+            if st:
+                self._by_state.setdefault(st, []).append(stn)
+
+        self._loaded = True
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
         log.info(
-            "RailwayStationResolver loaded %d stations, %d normalized names "
-            "(%.1f ms) from %s",
+            "RailwayStationResolver loaded %d stations, %d normalized names, "
+            "%d divisions, %d states (%.1f ms) from %s",
             len(self._stations),
             len(self._by_name),
+            len(self._by_division),
+            len(self._by_state),
             elapsed_ms,
             Path(target).name,
         )
@@ -379,6 +399,16 @@ class RailwayStationResolver:
         """Retrieve a full station record by exact station code."""
         self._ensure_loaded()
         return self._stations.get(code.upper())
+
+    def get_by_division(self, division: str) -> List[Dict[str, Any]]:
+        """Retrieve all stations belonging to a railway division."""
+        self._ensure_loaded()
+        return list(self._by_division.get(division.strip().upper(), []))
+
+    def get_by_state(self, state: str) -> List[Dict[str, Any]]:
+        """Retrieve all stations belonging to a state/UT."""
+        self._ensure_loaded()
+        return list(self._by_state.get(state.strip().upper(), []))
 
     @property
     def total_stations(self) -> int:

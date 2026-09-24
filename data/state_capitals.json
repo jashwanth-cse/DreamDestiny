@@ -1,0 +1,182 @@
+{
+  "ANDHRA PRADESH": {
+    "capital": "Amaravati",
+    "station_code": "BZA",
+    "station_name": "VIJAYAWADA JN."
+  },
+  "ARUNACHAL PRADESH": {
+    "capital": "Itanagar",
+    "station_code": "NHLN",
+    "station_name": "NAHARLAGUN"
+  },
+  "ASSAM": {
+    "capital": "Dispur",
+    "station_code": "GHY",
+    "station_name": "GUWAHATI"
+  },
+  "BIHAR": {
+    "capital": "Patna",
+    "station_code": "PNBE",
+    "station_name": "PATNA JN."
+  },
+  "CHHATTISGARH": {
+    "capital": "Raipur",
+    "station_code": "R",
+    "station_name": "RAIPUR JN."
+  },
+  "GOA": {
+    "capital": "Panaji",
+    "station_code": "MAO",
+    "station_name": "Madgaon Jn"
+  },
+  "GUJARAT": {
+    "capital": "Gandhinagar",
+    "station_code": "GNC",
+    "station_name": "GANDHINAGAR CAPITAL"
+  },
+  "HARYANA": {
+    "capital": "Chandigarh",
+    "station_code": "CDG",
+    "station_name": "CHANDIGARH"
+  },
+  "HIMACHAL PRADESH": {
+    "capital": "Shimla",
+    "station_code": "SML",
+    "station_name": "SHIMLA"
+  },
+  "JHARKHAND": {
+    "capital": "Ranchi",
+    "station_code": "RNC",
+    "station_name": "RANCHI"
+  },
+  "KARNATAKA": {
+    "capital": "Bengaluru",
+    "station_code": "SBC",
+    "station_name": "KSR BENGALURU"
+  },
+  "KERALA": {
+    "capital": "Thiruvananthapuram",
+    "station_code": "TVC",
+    "station_name": "Thiruvananthapuram Central"
+  },
+  "MADHYA PRADESH": {
+    "capital": "Bhopal",
+    "station_code": "BPL",
+    "station_name": "BHOPAL JN."
+  },
+  "MAHARASHTRA": {
+    "capital": "Mumbai",
+    "station_code": "CSMT",
+    "station_name": "C SHIVAJI MAH T"
+  },
+  "MANIPUR": {
+    "capital": "Imphal",
+    "station_code": "JRBM",
+    "station_name": "JIRIBAM"
+  },
+  "MEGHALAYA": {
+    "capital": "Shillong",
+    "station_code": "MNDP",
+    "station_name": "MENDIPATHAR"
+  },
+  "MIZORAM": {
+    "capital": "Aizawl",
+    "station_code": "BHRB",
+    "station_name": "BHAIRABI"
+  },
+  "NAGALAND": {
+    "capital": "Kohima",
+    "station_code": "DMV",
+    "station_name": "DIMAPUR"
+  },
+  "ODISHA": {
+    "capital": "Bhubaneswar",
+    "station_code": "BBS",
+    "station_name": "BHUBANESWAR"
+  },
+  "PUNJAB": {
+    "capital": "Chandigarh",
+    "station_code": "CDG",
+    "station_name": "CHANDIGARH"
+  },
+  "RAJASTHAN": {
+    "capital": "Jaipur",
+    "station_code": "JP",
+    "station_name": "JAIPUR JN."
+  },
+  "SIKKIM": {
+    "capital": "Gangtok",
+    "station_code": "NJP",
+    "station_name": "NEW JALPAIGURI JN."
+  },
+  "TAMIL NADU": {
+    "capital": "Chennai",
+    "station_code": "MAS",
+    "station_name": "Chennai Central"
+  },
+  "TELANGANA": {
+    "capital": "Hyderabad",
+    "station_code": "SC",
+    "station_name": "SECUNDERABAD JN."
+  },
+  "TRIPURA": {
+    "capital": "Agartala",
+    "station_code": "AGTL",
+    "station_name": "AGARTALA"
+  },
+  "UTTAR PRADESH": {
+    "capital": "Lucknow",
+    "station_code": "LKO",
+    "station_name": "LUCKNOW JN."
+  },
+  "UTTARAKHAND": {
+    "capital": "Dehradun",
+    "station_code": "DDN",
+    "station_name": "DEHRA DUN"
+  },
+  "WEST BENGAL": {
+    "capital": "Kolkata",
+    "station_code": "HWH",
+    "station_name": "HOWRAH"
+  },
+  "DELHI": {
+    "capital": "New Delhi",
+    "station_code": "NDLS",
+    "station_name": "NEW DELHI"
+  },
+  "CHANDIGARH": {
+    "capital": "Chandigarh",
+    "station_code": "CDG",
+    "station_name": "CHANDIGARH"
+  },
+  "JAMMU AND KASHMIR": {
+    "capital": "Srinagar / Jammu",
+    "station_code": "JAT",
+    "station_name": "JAMMU TAWI"
+  },
+  "LADAKH": {
+    "capital": "Leh",
+    "station_code": "JAT",
+    "station_name": "JAMMU TAWI"
+  },
+  "PUDUCHERRY": {
+    "capital": "Puducherry",
+    "station_code": "PDY",
+    "station_name": "Puducherry"
+  },
+  "ANDAMAN AND NICOBAR ISLANDS": {
+    "capital": "Port Blair",
+    "station_code": "MAS",
+    "station_name": "Chennai Central"
+  },
+  "DADRA AND NAGAR HAVELI AND DAMAN AND DIU": {
+    "capital": "Daman",
+    "station_code": "VAPI",
+    "station_name": "VAPI"
+  },
+  "LAKSHADWEEP": {
+    "capital": "Kavaratti",
+    "station_code": "ERS",
+    "station_name": "Ernakulam Jn (Port Link)"
+  }
+}

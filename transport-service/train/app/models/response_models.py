@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
 
 # ---------------------------------------------------------
@@ -51,12 +51,27 @@ class Train(BaseModel):
     recommended_class: Optional[TravelClass] = None
     classes: List[TravelClass]
 
+class RouteStationInfo(BaseModel):
+    station_name: str
+    station_code: str
+    division: Optional[str] = None
+    state: Optional[str] = None
+    district: Optional[str] = None
+
 class TrainSearchData(BaseModel):
     result_type: str
     source: str
     destination: str
     total_trains: int
     trains: List[Train]
+    route_type: str = "direct"  # "direct" | "division_fallback" | "state_capital_fallback" | "no_route_found"
+    original_source: Optional[Dict[str, Any]] = None
+    original_destination: Optional[Dict[str, Any]] = None
+    actual_source: Optional[Dict[str, Any]] = None
+    actual_destination: Optional[Dict[str, Any]] = None
+    fallback_reason: Optional[str] = None
+    fallback_searches_count: int = 1
+    latency_ms: Optional[float] = None
 
 class TrainSearchResponse(BaseModel):
     success: bool

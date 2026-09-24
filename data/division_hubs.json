@@ -1,0 +1,398 @@
+{
+  "ADI": {
+    "division": "ADI",
+    "hub_code": "ADI",
+    "hub_name": "AHMEDABAD JN.",
+    "zone": "WR"
+  },
+  "ADRA": {
+    "division": "ADRA",
+    "hub_code": "ADRA",
+    "hub_name": "ADRA",
+    "zone": "SER"
+  },
+  "AGRA": {
+    "division": "AGRA",
+    "hub_code": "AGC",
+    "hub_name": "AGRA CANTT",
+    "zone": "NCR"
+  },
+  "AII": {
+    "division": "AII",
+    "hub_code": "AII",
+    "hub_name": "AJMER JN.",
+    "zone": "NWR"
+  },
+  "APDJ": {
+    "division": "APDJ",
+    "hub_code": "APDJ",
+    "hub_name": "ALIPUR DUAR JN.",
+    "zone": "NFR"
+  },
+  "ASN": {
+    "division": "ASN",
+    "hub_code": "ASN",
+    "hub_name": "ASANSOL JN.",
+    "zone": "ER"
+  },
+  "BCT": {
+    "division": "BCT",
+    "hub_code": "MMCT",
+    "hub_name": "MUMBAI CENTRAL",
+    "zone": "WR"
+  },
+  "BKN": {
+    "division": "BKN",
+    "hub_code": "BKN",
+    "hub_name": "BIKANER JN.",
+    "zone": "NWR"
+  },
+  "BPL": {
+    "division": "BPL",
+    "hub_code": "BPL",
+    "hub_name": "BHOPAL JN.",
+    "zone": "WCR"
+  },
+  "BRC": {
+    "division": "BRC",
+    "hub_code": "BRC",
+    "hub_name": "VADODARA JN.",
+    "zone": "WR"
+  },
+  "BSB": {
+    "division": "BSB",
+    "hub_code": "BSB",
+    "hub_name": "VARANASI JN.",
+    "zone": "NR"
+  },
+  "BSL": {
+    "division": "BSL",
+    "hub_code": "BSL",
+    "hub_name": "BHUSAVAL JN.",
+    "zone": "CR"
+  },
+  "BSP": {
+    "division": "BSP",
+    "hub_code": "BSP",
+    "hub_name": "BILASPUR JN.",
+    "zone": "SECR"
+  },
+  "BVP": {
+    "division": "BVP",
+    "hub_code": "BVC",
+    "hub_name": "BHAVNAGAR TERMINUS",
+    "zone": "WR"
+  },
+  "BZA": {
+    "division": "BZA",
+    "hub_code": "BZA",
+    "hub_name": "VIJAYAWADA JN.",
+    "zone": "SCR"
+  },
+  "CKP": {
+    "division": "CKP",
+    "hub_code": "CKP",
+    "hub_name": "CHAKARADHARPUR",
+    "zone": "SER"
+  },
+  "CSTM": {
+    "division": "CSTM",
+    "hub_code": "CSMT",
+    "hub_name": "C SHIVAJI MAH T",
+    "zone": "CR"
+  },
+  "DDU": {
+    "division": "DDU",
+    "hub_code": "DDU",
+    "hub_name": "DD UPADHYAYA JN",
+    "zone": "ECR"
+  },
+  "DHN": {
+    "division": "DHN",
+    "hub_code": "DHN",
+    "hub_name": "DHANBAD JN.",
+    "zone": "ECR"
+  },
+  "DLI": {
+    "division": "DLI",
+    "hub_code": "NDLS",
+    "hub_name": "NEW DELHI",
+    "zone": "NR"
+  },
+  "DNR": {
+    "division": "DNR",
+    "hub_code": "PNBE",
+    "hub_name": "PATNA JN.",
+    "zone": "ECR"
+  },
+  "FZR": {
+    "division": "FZR",
+    "hub_code": "FZR",
+    "hub_name": "FIROZPUR CANTT. JN.",
+    "zone": "NR"
+  },
+  "GNT": {
+    "division": "GNT",
+    "hub_code": "GNT",
+    "hub_name": "GUNTUR JN.",
+    "zone": "SCR"
+  },
+  "GTL": {
+    "division": "GTL",
+    "hub_code": "GTL",
+    "hub_name": "GUNTAKAL JN.",
+    "zone": "SCR"
+  },
+  "HWH": {
+    "division": "HWH",
+    "hub_code": "HWH",
+    "hub_name": "HOWRAH",
+    "zone": "ER"
+  },
+  "HYB": {
+    "division": "HYB",
+    "hub_code": "HYB",
+    "hub_name": "HYDERABAD DECCAN",
+    "zone": "SCR"
+  },
+  "IZN": {
+    "division": "IZN",
+    "hub_code": "IZN",
+    "hub_name": "IZZATNAGAR JN.",
+    "zone": "NER"
+  },
+  "JBP": {
+    "division": "JBP",
+    "hub_code": "JBP",
+    "hub_name": "JABALPUR",
+    "zone": "WCR"
+  },
+  "JHS": {
+    "division": "JHS",
+    "hub_code": "GWL",
+    "hub_name": "GWALIOR JN.",
+    "zone": "NCR"
+  },
+  "JP": {
+    "division": "JP",
+    "hub_code": "JP",
+    "hub_name": "JAIPUR JN.",
+    "zone": "NWR"
+  },
+  "JU": {
+    "division": "JU",
+    "hub_code": "JU",
+    "hub_name": "JODHPUR JN.",
+    "zone": "NWR"
+  },
+  "KGP": {
+    "division": "KGP",
+    "hub_code": "KGP",
+    "hub_name": "KHARAGPUR",
+    "zone": "SER"
+  },
+  "KIR": {
+    "division": "KIR",
+    "hub_code": "KIR",
+    "hub_name": "KATIHAR JN.",
+    "zone": "NFR"
+  },
+  "KOTA": {
+    "division": "KOTA",
+    "hub_code": "KOTA",
+    "hub_name": "KOTA JN.",
+    "zone": "WCR"
+  },
+  "KUR": {
+    "division": "KUR",
+    "hub_code": "BBS",
+    "hub_name": "BHUBANESWAR",
+    "zone": "ECOR"
+  },
+  "LJN": {
+    "division": "LJN",
+    "hub_code": "LJN",
+    "hub_name": "LUCKNOW JN.",
+    "zone": "NER"
+  },
+  "LKO": {
+    "division": "LKO",
+    "hub_code": "LKO",
+    "hub_name": "LUCKNOW JN.",
+    "zone": "NR"
+  },
+  "LMG": {
+    "division": "LMG",
+    "hub_code": "LMG",
+    "hub_name": "LUMDING JN.",
+    "zone": "NFR"
+  },
+  "MAS": {
+    "division": "MAS",
+    "hub_code": "MAS",
+    "hub_name": "Chennai Central",
+    "zone": "SR"
+  },
+  "MB": {
+    "division": "MB",
+    "hub_code": "MB",
+    "hub_name": "MORADABAD JN.",
+    "zone": "NR"
+  },
+  "MDU": {
+    "division": "MDU",
+    "hub_code": "MDU",
+    "hub_name": "Madurai jn",
+    "zone": "SR"
+  },
+  "MLDT": {
+    "division": "MLDT",
+    "hub_code": "MLDT",
+    "hub_name": "MALDA TOWN",
+    "zone": "ER"
+  },
+  "MYS": {
+    "division": "MYS",
+    "hub_code": "MYS",
+    "hub_name": "MYSURU JN.",
+    "zone": "SWR"
+  },
+  "NAG": {
+    "division": "NAG",
+    "hub_code": "NGP",
+    "hub_name": "NAGPUR",
+    "zone": "CR"
+  },
+  "NED": {
+    "division": "NED",
+    "hub_code": "NED",
+    "hub_name": "H SAHIB NANDED",
+    "zone": "SCR"
+  },
+  "NGP": {
+    "division": "NGP",
+    "hub_code": "NGP",
+    "hub_name": "NAGPUR",
+    "zone": "CR"
+  },
+  "PGT": {
+    "division": "PGT",
+    "hub_code": "PGT",
+    "hub_name": "Palakkad jn.",
+    "zone": "SR"
+  },
+  "PRYJ": {
+    "division": "PRYJ",
+    "hub_code": "PRYJ",
+    "hub_name": "PRAYAGRAJ JN.",
+    "zone": "NCR"
+  },
+  "PUNE": {
+    "division": "PUNE",
+    "hub_code": "PUNE",
+    "hub_name": "PUNE JN.",
+    "zone": "CR"
+  },
+  "R": {
+    "division": "R",
+    "hub_code": "R",
+    "hub_name": "RAIPUR JN.",
+    "zone": "SECR"
+  },
+  "RJT": {
+    "division": "RJT",
+    "hub_code": "RJT",
+    "hub_name": "RAJKOT JN.",
+    "zone": "WR"
+  },
+  "RNC": {
+    "division": "RNC",
+    "hub_code": "RNC",
+    "hub_name": "RANCHI",
+    "zone": "SER"
+  },
+  "RNY": {
+    "division": "RNY",
+    "hub_code": "RNY",
+    "hub_name": "RANGIYA JN.",
+    "zone": "NFR"
+  },
+  "RTM": {
+    "division": "RTM",
+    "hub_code": "RTM",
+    "hub_name": "RATLAM JN.",
+    "zone": "WR"
+  },
+  "SBC": {
+    "division": "SBC",
+    "hub_code": "SBC",
+    "hub_name": "KSR BENGALURU",
+    "zone": "SWR"
+  },
+  "SBP": {
+    "division": "SBP",
+    "hub_code": "SBP",
+    "hub_name": "SAMBALPUR",
+    "zone": "ECOR"
+  },
+  "SC": {
+    "division": "SC",
+    "hub_code": "SC",
+    "hub_name": "SECUNDERABAD JN.",
+    "zone": "SCR"
+  },
+  "SDAH": {
+    "division": "SDAH",
+    "hub_code": "SDAH",
+    "hub_name": "SEALDAH",
+    "zone": "ER"
+  },
+  "SEE": {
+    "division": "SEE",
+    "hub_code": "SEE",
+    "hub_name": "SONPUR JN.",
+    "zone": "ECR"
+  },
+  "SPJ": {
+    "division": "SPJ",
+    "hub_code": "SPJ",
+    "hub_name": "SAMASTIPUR JN.",
+    "zone": "ECR"
+  },
+  "SUR": {
+    "division": "SUR",
+    "hub_code": "SUR",
+    "hub_name": "SOLAPUR",
+    "zone": "CR"
+  },
+  "TPJ": {
+    "division": "TPJ",
+    "hub_code": "TPJ",
+    "hub_name": "Tiruchchirappalli jn",
+    "zone": "SR"
+  },
+  "TSK": {
+    "division": "TSK",
+    "hub_code": "TSK",
+    "hub_name": "TINSUKIA JN.",
+    "zone": "NFR"
+  },
+  "UBL": {
+    "division": "UBL",
+    "hub_code": "UBL",
+    "hub_name": "SSS HUBBALLI JN",
+    "zone": "SWR"
+  },
+  "UMB": {
+    "division": "UMB",
+    "hub_code": "UMB",
+    "hub_name": "AMBALA CANTT. JN.",
+    "zone": "NR"
+  },
+  "WAT": {
+    "division": "WAT",
+    "hub_code": "VSKP",
+    "hub_name": "VISAKHAPATNAM",
+    "zone": "ECOR"
+  }
+}
