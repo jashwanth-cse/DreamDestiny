@@ -40,11 +40,14 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            echo "[2/4] Rebuilding and updating production containers..."
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            echo "[2/4] Rebuilding and waiting for containers to become healthy..."
+            docker compose -f docker-compose.prod.yml up -d --build --wait --remove-orphans
 
             echo "[3/4] Pruning dangling Docker build caches..."
             docker image prune -f
+
+            echo "Waiting 10s for reverse proxy upstreams to warm up..."
+            sleep 10
 
             echo "[4/4] Verifying all endpoints through reverse proxy..."
             python3 deploy/verify_deployment.py http://localhost
