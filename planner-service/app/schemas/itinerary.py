@@ -142,6 +142,24 @@ class TransportDecision(BaseModel):
         description="Fare in INR per person for the chosen class. Copy from payload.",
     )
 
+    # ── Boarding & Arrival points ──────────────────────────────────────────
+    departure_station: Optional[str] = Field(
+        default=None,
+        description="Exact boarding station or airport, e.g. 'Rajapalayam Railway Station (RJPM)' or 'Madurai Airport (IXM)' or 'Chennai Central (MAS)'.",
+    )
+    arrival_station: Optional[str] = Field(
+        default=None,
+        description="Exact destination station or airport, e.g. 'New Delhi Railway Station (NDLS)' or 'Indira Gandhi International Airport (DEL)'.",
+    )
+    is_direct: bool = Field(
+        default=True,
+        description="True if departing directly from the origin city, False if departing from a hub/nearby city.",
+    )
+    instruction: Optional[str] = Field(
+        default=None,
+        description="Clear, easy-to-read traveler instruction for this journey leg.",
+    )
+
     # ── Agent reasoning ───────────────────────────────────────────────────────
     reasoning: Optional[str] = Field(
         default=None,

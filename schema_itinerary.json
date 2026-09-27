@@ -1,0 +1,633 @@
+{
+  "$defs": {
+    "Activity": {
+      "description": "A single attraction visit within a day.\n\nattraction_name is included so the response is human-readable without\na secondary lookup, but the authoritative reference is attraction_name\nmatched against AttractionContext.name (attractions have no ID field).\nstart_time and duration_minutes are the LLM's scheduling decisions.",
+      "properties": {
+        "attraction_name": {
+          "description": "Must exactly match an AttractionContext.name from TripContext.",
+          "title": "Attraction Name",
+          "type": "string"
+        },
+        "start_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Suggested visit start time in HH:MM (24h). Null if unknown.",
+          "title": "Start Time"
+        },
+        "duration_minutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Suggested visit duration in minutes. Null if unknown.",
+          "title": "Duration Minutes"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional visit tip or reasoning. Must not contain invented facts.",
+          "title": "Notes"
+        },
+        "estimated_cost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Estimated entry fee or activity cost in INR.",
+          "title": "Estimated Cost"
+        }
+      },
+      "required": [
+        "attraction_name"
+      ],
+      "title": "Activity",
+      "type": "object"
+    },
+    "CostBreakdown": {
+      "description": "Estimated cost calculation for the trip.",
+      "properties": {
+        "transport_cost": {
+          "default": 0.0,
+          "description": "Total transport cost (outbound + return for all travelers)",
+          "title": "Transport Cost",
+          "type": "number"
+        },
+        "hotel_cost": {
+          "default": 0.0,
+          "description": "Total hotel accommodation cost for all nights",
+          "title": "Hotel Cost",
+          "type": "number"
+        },
+        "activities_estimated_cost": {
+          "default": 0.0,
+          "description": "Estimated activities cost",
+          "title": "Activities Estimated Cost",
+          "type": "number"
+        },
+        "currency": {
+          "default": "INR",
+          "description": "Currency code",
+          "title": "Currency",
+          "type": "string"
+        },
+        "total_cost": {
+          "default": 0.0,
+          "description": "Overall total estimated trip cost",
+          "title": "Total Cost",
+          "type": "number"
+        }
+      },
+      "title": "CostBreakdown",
+      "type": "object"
+    },
+    "DayPlan": {
+      "description": "Activities and transport legs for a single trip day.",
+      "properties": {
+        "day": {
+          "description": "Day number, starting from 1.",
+          "minimum": 1,
+          "title": "Day",
+          "type": "integer"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Calendar date for this day in YYYY-MM-DD format.",
+          "title": "Date"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional thematic label, e.g. 'Arrival & City Centre'.",
+          "title": "Theme"
+        },
+        "activities": {
+          "description": "Ordered list of attraction visits for this day.",
+          "items": {
+            "$ref": "#/$defs/Activity"
+          },
+          "title": "Activities",
+          "type": "array"
+        },
+        "transport": {
+          "description": "Transport legs for this day (origin travel, inter-attraction, etc.).",
+          "items": {
+            "$ref": "#/$defs/TransportDecision"
+          },
+          "title": "Transport",
+          "type": "array"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "title": "DayPlan",
+      "type": "object"
+    },
+    "HotelDecision": {
+      "description": "The LLM's hotel selection — references a HotelContext.id from TripContext.",
+      "properties": {
+        "hotel_id": {
+          "description": "Must match a HotelContext.id from TripContext.hotels.",
+          "title": "Hotel Id",
+          "type": "string"
+        },
+        "hotel_name": {
+          "description": "Must match the corresponding HotelContext.name. Included for readability.",
+          "title": "Hotel Name",
+          "type": "string"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why this hotel was selected (budget fit, rating, etc.).",
+          "title": "Reasoning"
+        },
+        "price_per_night": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Price per night from context in INR.",
+          "title": "Price Per Night"
+        },
+        "price_total": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total price for all nights in INR.",
+          "title": "Price Total"
+        }
+      },
+      "required": [
+        "hotel_id",
+        "hotel_name"
+      ],
+      "title": "HotelDecision",
+      "type": "object"
+    },
+    "ItinerarySummary": {
+      "properties": {
+        "destination": {
+          "title": "Destination",
+          "type": "string"
+        },
+        "origin": {
+          "title": "Origin",
+          "type": "string"
+        },
+        "days": {
+          "title": "Days",
+          "type": "integer"
+        },
+        "travelers": {
+          "title": "Travelers",
+          "type": "integer"
+        },
+        "pace": {
+          "description": "relaxed | moderate | intensive",
+          "title": "Pace",
+          "type": "string"
+        },
+        "budget_level": {
+          "description": "low | medium | high",
+          "title": "Budget Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "destination",
+        "origin",
+        "days",
+        "travelers",
+        "pace",
+        "budget_level"
+      ],
+      "title": "ItinerarySummary",
+      "type": "object"
+    },
+    "TransportDecision": {
+      "description": "The LLM's complete transport choice for one journey leg.\n\nALL factual fields (times, fares, seats) must be copied EXACTLY from\nthe pre-filtered TripContext payload — never invented.\n\nFormat contract (how this renders in the itinerary):\n    {train_number} - {train_name}\n    Departs {origin} on {departure_date} @ {departure_time}\n    Arrives {destination} on {arrival_date} @ {arrival_time}\n    Class: {travel_class} | Seats: {seats_available} {seat_status} | Rs.{fare_per_person}/person",
+      "properties": {
+        "leg": {
+          "description": "Human-readable route, e.g. 'Chennai → Coimbatore'.",
+          "title": "Leg",
+          "type": "string"
+        },
+        "mode": {
+          "description": "Chosen mode: 'train', 'bus', or 'flight'.",
+          "title": "Mode",
+          "type": "string"
+        },
+        "train_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact train_number from TripContext outbound_trains / return_trains.",
+          "title": "Train Number"
+        },
+        "train_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact train_name from TripContext. Do not invent or abbreviate.",
+          "title": "Train Name"
+        },
+        "operator_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact operator_name from TripContext outbound_buses / return_buses.",
+          "title": "Operator Name"
+        },
+        "bus_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact bus_type from TripContext, e.g. 'AC Sleeper (2+1)'.",
+          "title": "Bus Type"
+        },
+        "flight_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact flight_id from TripContext outbound_flights / return_flights.",
+          "title": "Flight Id"
+        },
+        "airline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact airline name from TripContext, e.g. 'IndiGo', 'Air India'.",
+          "title": "Airline"
+        },
+        "flight_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact flight_number from TripContext, e.g. '6E 479'.",
+          "title": "Flight Number"
+        },
+        "departure_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Departure date YYYY-MM-DD. Copy from payload. May be day-1 for overnight trains.",
+          "title": "Departure Date"
+        },
+        "departure_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Departure time HH:MM (24h). Copy exactly from payload.",
+          "title": "Departure Time"
+        },
+        "arrival_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Arrival date YYYY-MM-DD. Copy from payload.",
+          "title": "Arrival Date"
+        },
+        "arrival_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Arrival time HH:MM (24h). Copy exactly from payload.",
+          "title": "Arrival Time"
+        },
+        "travel_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chosen class code: '1A','2A','3A','CC','SL','2S','GN' or bus seat type.",
+          "title": "Travel Class"
+        },
+        "seat_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'AVL' (confirmed) or 'RAC' (reservation against cancellation).",
+          "title": "Seat Status"
+        },
+        "seats_available": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live seat count from payload. Copy exactly — do not guess.",
+          "title": "Seats Available"
+        },
+        "fare_per_person": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fare in INR per person for the chosen class. Copy from payload.",
+          "title": "Fare Per Person"
+        },
+        "departure_station": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact boarding station or airport, e.g. 'Rajapalayam Railway Station (RJPM)' or 'Madurai Airport (IXM)' or 'Chennai Central (MAS)'.",
+          "title": "Departure Station"
+        },
+        "arrival_station": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact destination station or airport, e.g. 'New Delhi Railway Station (NDLS)' or 'Indira Gandhi International Airport (DEL)'.",
+          "title": "Arrival Station"
+        },
+        "is_direct": {
+          "default": true,
+          "description": "True if departing directly from the origin city, False if departing from a hub/nearby city.",
+          "title": "Is Direct",
+          "type": "boolean"
+        },
+        "instruction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clear, easy-to-read traveler instruction for this journey leg.",
+          "title": "Instruction"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why this option was selected (class fit, timing, availability).",
+          "title": "Reasoning"
+        }
+      },
+      "required": [
+        "leg",
+        "mode"
+      ],
+      "title": "TransportDecision",
+      "type": "object"
+    }
+  },
+  "description": "The complete structured trip plan produced by the Planning Agent.\n\nGROUNDING CONTRACT:\n  - hotel.hotel_id must match a TripContext.hotels[*].id.\n  - outbound_transport / return_transport reference TripContext options.\n  - All attraction_name values must match TripContext.attractions[*].name.\n  - The agent must not invent any value not present in TripContext.",
+  "properties": {
+    "summary": {
+      "$ref": "#/$defs/ItinerarySummary"
+    },
+    "hotel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HotelDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Chosen hotel. Null if no hotels were available in context."
+    },
+    "outbound_transport": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TransportDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the traveler gets from origin to destination."
+    },
+    "return_transport": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TransportDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the traveler returns from destination to origin."
+    },
+    "days": {
+      "description": "Day-by-day activity plans.",
+      "items": {
+        "$ref": "#/$defs/DayPlan"
+      },
+      "title": "Days",
+      "type": "array"
+    },
+    "cost_breakdown": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Validated cost calculation (transport + accommodation)."
+    },
+    "total_cost": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Total estimated cost in INR.",
+      "title": "Total Cost"
+    },
+    "planning_notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional high-level planning notes from the agent.",
+      "title": "Planning Notes"
+    }
+  },
+  "required": [
+    "summary"
+  ],
+  "title": "Itinerary",
+  "type": "object"
+}

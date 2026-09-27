@@ -108,10 +108,11 @@ def _get_allowed_classes(berth_pref: str | None) -> list[str]:
 def _best_class_for_train(
     classes: list,
     ordered_allowed: list[str],
+    allow_wl: bool = False,
 ) -> dict | None:
     """
     Walk the ordered_allowed list and pick the FIRST class that has AVL or RAC seats.
-    Returns a dict with class details, or None if nothing bookable.
+    If allow_wl is True and no AVL/RAC seats exist, accepts the best WL class.
     """
     # Build a quick lookup: class_code → TravelClassContext
     class_map: dict[str, object] = {c.travel_class: c for c in classes}
@@ -144,7 +145,22 @@ def _best_class_for_train(
                 "seats_available": count,
             }
 
-    return None  # Only WL or unavailable
+    # Third pass: accept WL if allow_wl is True (last resort for train mode)
+    if allow_wl:
+        for code in ordered_allowed:
+            cls = class_map.get(code)
+            if cls is None:
+                continue
+            status, count = _parse_avail(cls.availability)
+            if status == "WL":
+                return {
+                    "travel_class": cls.travel_class,
+                    "fare": cls.fare,
+                    "seat_status": "WL",
+                    "seats_available": count,
+                }
+
+    return None
 
 
 def _compute_train_dates(
@@ -178,61 +194,85 @@ def _filter_trains(
     trains: list[TrainContext],
     journey_date: date,
     berth_pref: str | None,
+    origin_city: str = "",
     top_n: int = 5,
+    allow_wl_fallback: bool = True,
 ) -> list[dict]:
     """
     Pre-filter trains for the LLM payload:
 
     1. Running day check — only trains whose running_days includes journey weekday.
-    2. Class & availability — only trains with AVL or RAC in the preferred class
-       (or its fallback within same AC/Non-AC group).
-    3. Sort — AVL-first, then rating DESC.
-    4. Enrich — add departure_date, arrival_date, seat_status, seats_available,
-       travel_class, fare_per_person for the chosen class.
+    2. Class & availability — prefer AVL or RAC; fallback to WL only if none available.
+    3. Station metadata — attach full departure/arrival station names and directness.
+    4. Sort — AVL-first (0), RAC (1), WL (2), then rating DESC.
     5. Return top_n.
     """
     weekday = journey_date.strftime("%a")  # "Mon", "Tue", etc.
     ordered_allowed = _get_allowed_classes(berth_pref)
 
-    candidates: list[tuple[dict, tuple]] = []  # (enriched_dict, sort_key)
+    def _collect(allow_wl: bool) -> list[tuple[dict, tuple]]:
+        candidates = []
+        for t in trains:
+            # 1. Running day check
+            if weekday not in (t.running_days or []):
+                continue
 
-    for t in trains:
-        # 1. Running day check
-        if weekday not in (t.running_days or []):
-            continue
+            # 2. Find best available class
+            best_cls = _best_class_for_train(t.classes, ordered_allowed, allow_wl=allow_wl)
+            if best_cls is None:
+                continue
 
-        # 2. Find best available class
-        best_cls = _best_class_for_train(t.classes, ordered_allowed)
-        if best_cls is None:
-            continue  # All preferred classes are WL or unavailable
+            # 3. Compute dates
+            dep_date, arr_date = _compute_train_dates(
+                journey_date, t.departure_time, t.duration_minutes
+            )
 
-        # 3. Compute dates
-        dep_date, arr_date = _compute_train_dates(
-            journey_date, t.departure_time, t.duration_minutes
-        )
+            from_stn_name = t.from_station_name or "Origin Station"
+            from_stn_code = t.from_station_code or ""
+            to_stn_name = t.to_station_name or "Destination Station"
+            to_stn_code = t.to_station_code or ""
 
-        enriched = {
-            "train_number":    t.train_number,
-            "train_name":      t.train_name,
-            "departure_date":  dep_date,
-            "departure_time":  t.departure_time,
-            "arrival_date":    arr_date,
-            "arrival_time":    t.arrival_time,
-            "duration":        t.duration,
-            "distance_km":     t.distance_km,
-            "has_pantry":      t.has_pantry,
-            "rating":          t.rating,
-            "travel_class":    best_cls["travel_class"],
-            "fare_per_person": best_cls["fare"],
-            "seat_status":     best_cls["seat_status"],
-            "seats_available": best_cls["seats_available"],
-        }
-        # Sort: AVL first (0 < 1), then rating DESC (negate)
-        sort_key = (0 if best_cls["seat_status"] == "AVL" else 1, -t.rating)
-        candidates.append((enriched, sort_key))
+            dep_station_full = f"{from_stn_name} ({from_stn_code})" if from_stn_code else from_stn_name
+            arr_station_full = f"{to_stn_name} ({to_stn_code})" if to_stn_code else to_stn_name
 
-    candidates.sort(key=lambda x: x[1])
-    return [item[0] for item in candidates[:top_n]]
+            is_direct = (t.route_type == "direct" or not t.route_type)
+            if origin_city and from_stn_name:
+                if origin_city.lower() not in from_stn_name.lower():
+                    is_direct = False
+
+            enriched = {
+                "train_number":      t.train_number,
+                "train_name":        t.train_name,
+                "departure_station": dep_station_full,
+                "arrival_station":   arr_station_full,
+                "route_type":        t.route_type or "direct",
+                "is_direct":         is_direct,
+                "fallback_reason":   t.fallback_reason,
+                "departure_date":    dep_date,
+                "departure_time":    t.departure_time,
+                "arrival_date":      arr_date,
+                "arrival_time":      t.arrival_time,
+                "duration":          t.duration,
+                "distance_km":       t.distance_km,
+                "has_pantry":        t.has_pantry,
+                "rating":            t.rating,
+                "travel_class":      best_cls["travel_class"],
+                "fare_per_person":   best_cls["fare"],
+                "seat_status":       best_cls["seat_status"],
+                "seats_available":   best_cls["seats_available"],
+            }
+            # Sort priority: AVL (0) < RAC (1) < WL (2), then rating DESC
+            status_prio = 0 if best_cls["seat_status"] == "AVL" else (1 if best_cls["seat_status"] == "RAC" else 2)
+            sort_key = (status_prio, -t.rating)
+            candidates.append((enriched, sort_key))
+        return candidates
+
+    res = _collect(allow_wl=False)
+    if not res and allow_wl_fallback:
+        res = _collect(allow_wl=True)
+
+    res.sort(key=lambda x: x[1])
+    return [item[0] for item in res[:top_n]]
 
 
 # ── Hotel pre-filter ──────────────────────────────────────────────────────────
@@ -357,12 +397,14 @@ def _filter_buses(
 def _filter_flights(
     flights: list[FlightContext],
     budget_level: str = "medium",
+    resolution: Optional[FlightResolutionContext] = None,
     top_n: int = 5,
 ) -> list[dict]:
     """
     Pre-filter flights:
     1. Sort by: is_best_flight DESC, stops ASC, price ASC.
-    2. Return top_n normalized dicts.
+    2. Attach exact airport names, city locations, and distances.
+    3. Return top_n normalized dicts.
     """
     if not flights:
         return []
@@ -376,24 +418,44 @@ def _filter_flights(
         )
     )
 
-    return [
-        {
-            "flight_id":         f.flight_id,
-            "airline":           f.airline,
-            "flight_number":     f.flight_number,
-            "departure_airport": f.departure_airport_code,
-            "arrival_airport":   f.arrival_airport_code,
-            "departure_time":    f.departure_time,
-            "arrival_time":      f.arrival_time,
-            "duration":          f.duration,
-            "stops":             f.stops,
-            "price":             f.price,
-            "currency":          f.currency,
-            "travel_class":      f.travel_class,
-            "is_best_flight":    f.is_best_flight,
-        }
-        for f in sorted_flights[:top_n]
-    ]
+    result = []
+    dep_city = resolution.origin_city if resolution else ""
+    dep_dist = resolution.origin_airport_distance_km if resolution else 0.0
+    arr_city = resolution.destination_city if resolution else ""
+    arr_dist = resolution.destination_airport_distance_km if resolution else 0.0
+
+    for f in sorted_flights[:top_n]:
+        dep_name = f.departure_airport_name or (resolution.origin_airport_name if resolution else "") or f.departure_airport_code
+        arr_name = f.arrival_airport_name or (resolution.destination_airport_name if resolution else "") or f.arrival_airport_code
+
+        dep_station = f"{dep_name} ({f.departure_airport_code})"
+        arr_station = f"{arr_name} ({f.arrival_airport_code})"
+
+        is_direct = (dep_dist <= 5.0)
+
+        result.append({
+            "flight_id":                      f.flight_id,
+            "airline":                        f.airline,
+            "flight_number":                  f.flight_number,
+            "departure_airport":              f.departure_airport_code,
+            "departure_station":              dep_station,
+            "arrival_airport":                f.arrival_airport_code,
+            "arrival_station":                arr_station,
+            "departure_city":                 dep_city,
+            "departure_airport_distance_km":  dep_dist,
+            "arrival_city":                   arr_city,
+            "arrival_airport_distance_km":    arr_dist,
+            "is_direct":                      is_direct,
+            "departure_time":                 f.departure_time,
+            "arrival_time":                   f.arrival_time,
+            "duration":                       f.duration,
+            "stops":                          f.stops,
+            "price":                          f.price,
+            "currency":                       f.currency,
+            "travel_class":                   f.travel_class,
+            "is_best_flight":                 f.is_best_flight,
+        })
+    return result
 
 
 # ── Payload builder ───────────────────────────────────────────────────────────
@@ -477,6 +539,7 @@ def _build_context_payload(context: TripContext) -> dict:
             context.outbound_trains,
             journey_date=trip.start_date,
             berth_pref=berth_pref,
+            origin_city=trip.origin,
             top_n=5,
         ),
 
@@ -485,6 +548,7 @@ def _build_context_payload(context: TripContext) -> dict:
             context.return_trains,
             journey_date=trip.end_date,
             berth_pref=berth_pref,
+            origin_city=trip.destination,
             top_n=5,
         ),
 
@@ -506,6 +570,7 @@ def _build_context_payload(context: TripContext) -> dict:
         "outbound_flights": _filter_flights(
             context.outbound_flights,
             budget_level=budget_level,
+            resolution=context.flight_resolution,
             top_n=5,
         ),
 
@@ -513,6 +578,7 @@ def _build_context_payload(context: TripContext) -> dict:
         "return_flights": _filter_flights(
             context.return_flights,
             budget_level=budget_level,
+            resolution=context.flight_resolution,
             top_n=5,
         ),
 

@@ -1,0 +1,635 @@
+Here is the TripContext for this planning request:
+
+{
+  "trip": {
+    "origin": "rajapalayam",
+    "destination": "delhi",
+    "start_date": "2026-10-15",
+    "end_date": "2026-10-18",
+    "days": 3,
+    "travelers": 2,
+    "preferences": {
+      "budget": "medium",
+      "transport_mode": "train",
+      "berth_preference": "any",
+      "hotel_category": "mid_range",
+      "pace": "moderate",
+      "interests": [
+        "history",
+        "nature"
+      ],
+      "family_friendly": null,
+      "food": null
+    }
+  },
+  "attractions": [
+    {
+      "name": "India Gate",
+      "address": "Kartavya Path, India Gate, New Delhi, Delhi 110001, India",
+      "rating": 4.6,
+      "review_count": 287305,
+      "latitude": 28.612911999999998,
+      "longitude": 77.2295097,
+      "types": [
+        "monument",
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Mehrauli Archaeological Park Walk",
+      "address": "Anuvrat Marg, opposite Qutab Minar Metro Station, Christian Colony, Mehrauli, New Delhi, Delhi 110030, India",
+      "rating": 4.4,
+      "review_count": 4005,
+      "latitude": 28.520204099999997,
+      "longitude": 77.187679,
+      "types": [
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Humayun’s Tomb",
+      "address": "Hazrat Nizamuddin Aulia Dargah, Mathura Rd, Nizamuddin, Nizamuddin East, New Delhi, Delhi 110013, India",
+      "rating": 4.5,
+      "review_count": 51930,
+      "latitude": 28.5932848,
+      "longitude": 77.2507492,
+      "types": [
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Purana Qila",
+      "address": "Mathura Rd, Near Delhi Zoo, J65V+RFH, Pragati Maidan, New Delhi, Delhi 110001, India",
+      "rating": 4.2,
+      "review_count": 33463,
+      "latitude": 28.6095744,
+      "longitude": 77.24373709999999,
+      "types": [
+        "tourist_attraction",
+        "museum",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Safdarjung Tomb",
+      "address": "Airforce Golf Course, Delhi Race Club, New Delhi, Delhi 110003, India",
+      "rating": 4.4,
+      "review_count": 16362,
+      "latitude": 28.5894156,
+      "longitude": 77.2106219,
+      "types": [
+        "monument",
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "The Garden of Five Senses",
+      "address": "Westend Marg, Saidulajab, Saiyad ul Ajaib, Saket, New Delhi, Delhi 110030, India",
+      "rating": 4.1,
+      "review_count": 24638,
+      "latitude": 28.513403,
+      "longitude": 77.1975227,
+      "types": [
+        "garden",
+        "tourist_attraction",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Qutb Minar",
+      "address": "Seth Sarai, Mehrauli, New Delhi, Delhi 110030, India",
+      "rating": 4.5,
+      "review_count": 163035,
+      "latitude": 28.5244754,
+      "longitude": 77.18552059999999,
+      "types": [
+        "monument",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Red Fort",
+      "address": "Netaji Subhash Marg, Old Delhi, Lal Qila, Chandni Chowk, New Delhi, Delhi, 110006, India",
+      "rating": 4.5,
+      "review_count": 182918,
+      "latitude": 28.656159199999998,
+      "longitude": 77.2410203,
+      "types": [
+        "tourist_attraction",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Lodhi Garden",
+      "address": "Lodhi Rd, Lodhi Gardens, Lodhi Estate, New Delhi, Delhi 110003, India",
+      "rating": 4.5,
+      "review_count": 58233,
+      "latitude": 28.593095899999998,
+      "longitude": 77.21967939999999,
+      "types": [
+        "garden",
+        "tourist_attraction",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Hauz Khas Fort",
+      "address": "H53V+7C6, Hauz Khas Fort Rd, Hauz Khas Village, Deer Park, Hauz Khas, New Delhi, Delhi 110016, India",
+      "rating": 4.4,
+      "review_count": 6310,
+      "latitude": 28.5531541,
+      "longitude": 77.1935275,
+      "types": [
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Dilli Haat - INA",
+      "address": "INA Market, Dilli Haat, Kidwai Nagar West, Kidwai Nagar, New Delhi, Delhi 110023, India",
+      "rating": 4.4,
+      "review_count": 47484,
+      "latitude": 28.5733233,
+      "longitude": 77.2075473,
+      "types": [
+        "event_venue",
+        "point_of_interest",
+        "service",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Bharat Darshan Park",
+      "address": "Punjabi Bagh Xing, Ring Rd, JJ Colony, Moti Nagar, New Delhi, Delhi, 110026, India",
+      "rating": 4.3,
+      "review_count": 9780,
+      "latitude": 28.666675599999998,
+      "longitude": 77.1353554,
+      "types": [
+        "park",
+        "tourist_attraction",
+        "garden",
+        "point_of_interest",
+        "establishment"
+      ]
+    }
+  ],
+  "hotels": [
+    {
+      "id": "ChoQpfX62fL_js7iARoNL2cvMTF6Nm0zMm4xNxAC",
+      "name": "Tofino -1 BHK airconditioned serviced apartment with a forest view fully furnished with wifi ,fridge,smart tv,washing machine , operational kitchen and lift facility",
+      "rating": 5.0,
+      "hotel_class": null,
+      "price_per_night": 2100.0,
+      "price_total": 6300.0,
+      "currency": "INR",
+      "amenities": [
+        "Air conditioning",
+        "Elevator",
+        "Heating",
+        "Kitchen",
+        "Oven stove"
+      ]
+    },
+    {
+      "id": "ChkIudmv7L3Y3eRwGg0vZy8xMW00Mm5nNTE1EAE",
+      "name": "Minimalist Poshtel & Suites",
+      "rating": 4.0,
+      "hotel_class": 3,
+      "price_per_night": 2155.0,
+      "price_total": 6464.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Parking ($)",
+        "Air conditioning",
+        "Pet-friendly"
+      ]
+    },
+    {
+      "id": "ChgIivuEl8_Fz-qzARoLL2cvMXRoMDh0c2sQAQ",
+      "name": "Tivoli Garden Resort",
+      "rating": 4.0,
+      "hotel_class": 5,
+      "price_per_night": 4488.0,
+      "price_total": 13463.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Free parking",
+        "Outdoor pool",
+        "Hot tub"
+      ]
+    },
+    {
+      "id": "ChoI5IyKlKG78f_gARoNL2cvMTFmeWxrNmNmZhAB",
+      "name": "Taurus Sarovar Portico Hotel, New Delhi",
+      "rating": 3.8,
+      "hotel_class": 4,
+      "price_per_night": 4921.0,
+      "price_total": 14762.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Free parking",
+        "Air conditioning",
+        "Fitness center"
+      ]
+    },
+    {
+      "id": "ChkI7fCm6Nu7tPafARoML2cvMTI0eWZ0MGhoEAE",
+      "name": "Golden Tulip Essential",
+      "rating": 3.8,
+      "hotel_class": 3,
+      "price_per_night": 3388.0,
+      "price_total": 10163.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Parking",
+        "Air conditioning",
+        "Bar"
+      ]
+    }
+  ],
+  "outbound_trains": [
+    {
+      "train_number": "12615",
+      "train_name": "GRAND TRUNK EXP",
+      "departure_station": "Chennai Central (MAS)",
+      "arrival_station": "NEW DELHI (NDLS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Rajapalayam (RJPM) and Delhi - All stations (NDLS), or their division hubs. Found verified trains via state capitals Chennai Central (MAS) and NEW DELHI (NDLS).",
+      "departure_date": "2026-10-15",
+      "departure_time": "18:15",
+      "arrival_date": "2026-10-17",
+      "arrival_time": "05:10",
+      "duration": "34h 55m",
+      "distance_km": 2188,
+      "has_pantry": true,
+      "rating": 4.1,
+      "travel_class": "1A",
+      "fare_per_person": 5375,
+      "seat_status": "AVL",
+      "seats_available": 6
+    },
+    {
+      "train_number": "20493",
+      "train_name": "MDU CDG SF EXP",
+      "departure_station": "Perambur (PER)",
+      "arrival_station": "Delhi Hazrat Nizamuddin (NZM)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Rajapalayam (RJPM) and Delhi - All stations (NDLS), or their division hubs. Found verified trains via state capitals Chennai Central (MAS) and NEW DELHI (NDLS).",
+      "departure_date": "2026-10-15",
+      "departure_time": "09:15",
+      "arrival_date": "2026-10-16",
+      "arrival_time": "21:35",
+      "duration": "36h 20m",
+      "distance_km": 2180,
+      "has_pantry": false,
+      "rating": 4.2,
+      "travel_class": "SL",
+      "fare_per_person": 890,
+      "seat_status": "RAC",
+      "seats_available": 31
+    },
+    {
+      "train_number": "16031",
+      "train_name": "ANDAMAN EXPRESS",
+      "departure_station": "Chennai Central (MAS)",
+      "arrival_station": "NEW DELHI (NDLS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Rajapalayam (RJPM) and Delhi - All stations (NDLS), or their division hubs. Found verified trains via state capitals Chennai Central (MAS) and NEW DELHI (NDLS).",
+      "departure_date": "2026-10-15",
+      "departure_time": "05:10",
+      "arrival_date": "2026-10-16",
+      "arrival_time": "20:55",
+      "duration": "39h 45m",
+      "distance_km": 2211,
+      "has_pantry": false,
+      "rating": 3.8,
+      "travel_class": "SL",
+      "fare_per_person": 865,
+      "seat_status": "RAC",
+      "seats_available": 66
+    }
+  ],
+  "return_trains": [
+    {
+      "train_number": "12616",
+      "train_name": "GRAND TRUNK EXP",
+      "departure_station": "NEW DELHI (NDLS)",
+      "arrival_station": "Chennai Central (MAS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Delhi - All stations (NDLS) and Rajapalayam (RJPM), or their division hubs. Found verified trains via state capitals NEW DELHI (NDLS) and Chennai Central (MAS).",
+      "departure_date": "2026-10-18",
+      "departure_time": "16:10",
+      "arrival_date": "2026-10-20",
+      "arrival_time": "04:40",
+      "duration": "36h 30m",
+      "distance_km": 2180,
+      "has_pantry": true,
+      "rating": 3.8,
+      "travel_class": "1A",
+      "fare_per_person": 5375,
+      "seat_status": "AVL",
+      "seats_available": 1
+    },
+    {
+      "train_number": "12622",
+      "train_name": "TAMILNADU SF EXP",
+      "departure_station": "NEW DELHI (NDLS)",
+      "arrival_station": "Chennai Central (MAS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Delhi - All stations (NDLS) and Rajapalayam (RJPM), or their division hubs. Found verified trains via state capitals NEW DELHI (NDLS) and Chennai Central (MAS).",
+      "departure_date": "2026-10-18",
+      "departure_time": "21:05",
+      "arrival_date": "2026-10-20",
+      "arrival_time": "06:35",
+      "duration": "33h 30m",
+      "distance_km": 2180,
+      "has_pantry": true,
+      "rating": 4.1,
+      "travel_class": "SL",
+      "fare_per_person": 890,
+      "seat_status": "RAC",
+      "seats_available": 16
+    },
+    {
+      "train_number": "22404",
+      "train_name": "NDLS PDY SF EXP",
+      "departure_station": "NEW DELHI (NDLS)",
+      "arrival_station": "Chennai Egmore (MS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Delhi - All stations (NDLS) and Rajapalayam (RJPM), or their division hubs. Found verified trains via state capitals NEW DELHI (NDLS) and Chennai Central (MAS).",
+      "departure_date": "2026-10-18",
+      "departure_time": "23:15",
+      "arrival_date": "2026-10-20",
+      "arrival_time": "09:25",
+      "duration": "34h 10m",
+      "distance_km": 2181,
+      "has_pantry": true,
+      "rating": 3.7,
+      "travel_class": "2A",
+      "fare_per_person": 3190,
+      "seat_status": "RAC",
+      "seats_available": 11
+    }
+  ],
+  "outbound_buses": [],
+  "return_buses": [],
+  "outbound_flights": [
+    {
+      "flight_id": "fl_a30f0e1a05d9c312",
+      "airline": "IndiGo",
+      "flight_number": "6E 2365",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 08:30",
+      "arrival_time": "2026-10-15 12:00",
+      "duration": "3h 30m",
+      "stops": 0,
+      "price": 22604.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    },
+    {
+      "flight_id": "fl_234f899873cb22fd",
+      "airline": "SriLankan",
+      "flight_number": "UL 140, UL 191",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 15:30",
+      "arrival_time": "2026-10-16 04:15",
+      "duration": "12h 45m",
+      "stops": 1,
+      "price": 56734.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    },
+    {
+      "flight_id": "fl_f34ce53bfe9b387c",
+      "airline": "Air India Express",
+      "flight_number": "IX 1832, AI 2468",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 11:55",
+      "arrival_time": "2026-10-15 16:55",
+      "duration": "5h",
+      "stops": 1,
+      "price": null,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    },
+    {
+      "flight_id": "fl_7f6fc14678380df9",
+      "airline": "SriLankan",
+      "flight_number": "UL 140, QR 655, 6E 1346",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 15:30",
+      "arrival_time": "2026-10-16 08:55",
+      "duration": "17h 25m",
+      "stops": 2,
+      "price": 192176.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    }
+  ],
+  "return_flights": [
+    {
+      "flight_id": "fl_75044828079e3d02",
+      "airline": "IndiGo",
+      "flight_number": "6E 2364",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 04:50",
+      "arrival_time": "2026-10-18 08:00",
+      "duration": "3h 10m",
+      "stops": 0,
+      "price": 23240.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_db531deeb45179f8",
+      "airline": "IndiGo",
+      "flight_number": "6E 6470, 6E 2047",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 06:55",
+      "arrival_time": "2026-10-18 15:25",
+      "duration": "8h 30m",
+      "stops": 1,
+      "price": 25658.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_77df77620d0df6fb",
+      "airline": "IndiGo",
+      "flight_number": "6E 203, 6E 6781",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 07:10",
+      "arrival_time": "2026-10-18 16:40",
+      "duration": "9h 30m",
+      "stops": 1,
+      "price": 28824.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_9d742c4bd556185e",
+      "airline": "SriLankan",
+      "flight_number": "UL 192, UL 139",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 05:15",
+      "arrival_time": "2026-10-18 14:30",
+      "duration": "9h 15m",
+      "stops": 1,
+      "price": 60560.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_96fd145c899c2992",
+      "airline": "Air India",
+      "flight_number": "AI 2467, IX 1831",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 10:00",
+      "arrival_time": "2026-10-19 11:25",
+      "duration": "25h 25m",
+      "stops": 1,
+      "price": 29929.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    }
+  ],
+  "route": {
+    "distance_km": 2602.49,
+    "modes": [
+      {
+        "mode": "driving",
+        "duration_minutes": 2583
+      },
+      {
+        "mode": "transit",
+        "duration_minutes": 6544
+      }
+    ]
+  },
+  "flight_resolution": null
+}
+
+Produce the Itinerary JSON as specified.

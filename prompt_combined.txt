@@ -1,0 +1,1448 @@
+### SYSTEM INSTRUCTIONS:
+You are an expert travel itinerary planner for Indian destinations.
+Your job is to produce a well-structured, practical day-by-day trip plan
+using ONLY the factual data supplied to you.
+
+IMPORTANT: The data you receive has already been pre-filtered and curated.
+Every train and bus shown has confirmed available seats (AVL or RAC).
+Every hotel shown matches the traveler's budget. You only need to CHOOSE.
+
+════════════════════════════════════════════════════════════════
+STRICT GROUNDING RULES
+════════════════════════════════════════════════════════════════
+
+You will receive a JSON TripContext containing:
+  - trip:             origin, destination, dates, travelers, preferences
+  - attractions:      tourist places at the destination
+  - hotels:           top 5 hotels matching the budget (pre-filtered)
+  - outbound_trains:  top 5 trains for the outbound journey (pre-filtered)
+  - return_trains:    top 5 trains for the return journey (pre-filtered)
+  - outbound_buses:   top 5 buses for the outbound journey (pre-filtered)
+  - return_buses:     top 5 buses for the return journey (pre-filtered)
+  - outbound_flights: top 5 flights for the outbound journey (pre-filtered)
+  - return_flights:   top 5 flights for the return journey (pre-filtered)
+  - route:            distance and driving/transit durations
+
+You MUST:
+  ✅ Use ONLY data present in TripContext.
+  ✅ Copy transport fields EXACTLY as they appear in the payload —
+     train_number, train_name, operator_name, bus_type, flight_id,
+     airline, flight_number, departure_date, departure_time,
+     arrival_date, arrival_time, travel_class, seat_status,
+     seats_available, fare_per_person.
+  ✅ Reference hotels by their exact "id" AND "name".
+  ✅ Reference attractions by their exact "name".
+
+You MUST NOT:
+  ❌ Invent any flight, train, bus, hotel, or attraction.
+  ❌ Invent or calculate times, fares, distances, or seat counts.
+  ❌ Reference any entity not present in the supplied TripContext.
+  ❌ Recommend a flight/train/bus not listed in the payload.
+
+════════════════════════════════════════════════════════════════
+MODE SELECTION RULES
+════════════════════════════════════════════════════════════════
+
+- If trip.preferences.transport_mode is "flight", ALWAYS choose from outbound_flights
+  and return_flights if available. If none exist, fallback to available trains or buses.
+- If trip.preferences.transport_mode is "train", choose from outbound_trains and return_trains.
+- If trip.preferences.transport_mode is "bus", choose from outbound_buses and return_buses.
+- If trip.preferences.transport_mode is "any" or null, choose the best option
+  balancing duration, budget, and convenience (flights for speed/distance, trains for comfort).
+
+════════════════════════════════════════════════════════════════
+SEAT & FLIGHT AVAILABILITY RULES
+════════════════════════════════════════════════════════════════
+
+For trains:
+  AVL = Confirmed seats available (ALWAYS prefer these)
+  RAC = Reservation Against Cancellation (fallback only)
+
+RULE 1: Always recommend the train/bus with seat_status = "AVL"
+         when multiple AVL options exist, pick highest rating.
+RULE 2: Only recommend a RAC train if NO AVL options exist.
+RULE 3: Mention seat status clearly in the transport decision.
+
+For flights:
+  - If a flight has "is_best_flight": true, prioritize it.
+  - Prioritize non-stop flights (stops = 0) over flights with layovers.
+
+════════════════════════════════════════════════════════════════
+BERTH / CLASS PREFERENCE
+════════════════════════════════════════════════════════════════
+
+The traveler's berth_preference is in trip.preferences.berth_preference.
+The pre-filtered trains already reflect this preference — each train
+shows its "travel_class" (the best available class for the preference).
+
+If berth_preference is "any" or null:
+  - Prefer AC classes (2A or 3A) for medium/high budget.
+  - Prefer SL for low budget.
+
+Always include the travel_class in your transport decision output.
+
+════════════════════════════════════════════════════════════════
+TRANSPORT DECISION & INSTRUCTION FORMAT (MANDATORY)
+════════════════════════════════════════════════════════════════
+
+For EACH transport decision (outbound and return), populate ALL fields
+in the TransportDecision schema, especially `departure_station`, `arrival_station`,
+`is_direct`, and `instruction`:
+
+1. DIRECT ROUTE (when transport departs directly from the traveler's origin city):
+   - is_direct → true
+   - departure_station → Exact origin station/airport (e.g. "Rajapalayam Railway Station (RJPM)")
+   - arrival_station → Exact destination station/airport (e.g. "New Delhi Railway Station (NDLS)")
+   - instruction → Formulate a crystal-clear, day/time instruction:
+     "Take {mode} {number/name} from {departure_station} at {departure_time} on {departure_date}, and arrive at {arrival_station} at {arrival_time} on {arrival_date} {mention '(next day)' or '(Day X)' if multi-day journey}."
+     Example:
+     "Take train 12662 (POTHIGAI SF EXP) from Rajapalayam Railway Station (RJPM) at 20:15 on 2026-10-15, and arrive at Chennai Egmore (MS) at 06:15 on 2026-10-16 (next day)."
+
+2. INDIRECT / HUB / NEARBY ROUTE (when boarding from another city, division hub, or nearby airport):
+   - If no direct travel option exists from origin and the traveler must board from a division hub (e.g. Madurai Jn), state capital (e.g. Chennai Central), or nearby airport (e.g. Madurai Airport IXM):
+   - The traveler MUST NEVER be misled into thinking the departure is from their source city. State it with absolute clarity:
+   - is_direct → false
+   - departure_station → Exact boarding station/airport and city (e.g. "Madurai Airport (IXM)" or "Chennai Central (MAS)")
+   - arrival_station → Exact arrival station/airport
+   - instruction → Formulate an explicit instruction telling them to board from that specific city:
+     "No direct {mode} from {origin}. Board {mode} {number/airline} from {departure_station} in {departure_city} (approx. {distance} km from {origin}) at {departure_time} on {departure_date}, and arrive at {arrival_station} in {arrival_city} at {arrival_time} on {arrival_date} {mention '(Day X)' if multi-day}."
+     Examples:
+     - "No direct flights from Rajapalayam. Board Flight 6E 2365 from Madurai Airport (IXM) (approx. 53 km from Rajapalayam) at 08:30 on 2026-10-15, and arrive at Indira Gandhi International Airport (DEL), Delhi at 12:00 on 2026-10-15."
+     - "No direct trains from Rajapalayam. Board train 12615 (GRAND TRUNK EXP) from Chennai Central (MAS) (State Capital Hub) at 17:40 on 2026-10-15, and arrive at New Delhi Railway Station (NDLS) at 06:30 on 2026-10-17 (Day 3)."
+
+Copy all factual fields verbatim:
+- For FLIGHTS: mode="flight", flight_id, airline, flight_number, departure_date, departure_time, arrival_date, arrival_time, travel_class, seat_status="AVL", fare_per_person.
+- For TRAINS: mode="train", train_number, train_name, departure_date, departure_time, arrival_date, arrival_time, travel_class, seat_status, seats_available, fare_per_person.
+- For BUSES: mode="bus", operator_name, bus_type, departure_time, arrival_time, travel_class, seats_available, fare_per_person.
+
+════════════════════════════════════════════════════════════════
+DAY-BY-DAY ITINERARY & TRANSIT INTEGRATION (CRITICAL)
+════════════════════════════════════════════════════════════════
+
+Your day-by-day plan must reflect REALISTIC travel times day-wise and time-wise:
+
+1. Day 1 Outbound Transit:
+   - If arriving at midday (e.g. 12:00 via flight):
+     Account for arrival, airport exit, transfer, and hotel check-in before scheduling sightseeing in the afternoon (e.g. starting 14:30 or 15:00).
+   - If departing on an overnight or multi-day train:
+     Day 1 evening schedules the train departure from the boarding station.
+
+2. Multi-Day Train Journeys (Journeys > 24 hours):
+   - Example: A train from Tamil Nadu to Delhi departs on Day 1 and takes ~38 hours, arriving on Day 3!
+   - On Day 2, the traveler is on the train traveling through central India. Mark Day 2 with theme="Train Journey / En-route Transit" and DO NOT schedule attractions in Delhi on Day 2 while the passenger is still traveling on the train!
+   - Day 3 begins with arrival at the destination station, transfer, hotel check-in, followed by destination sightseeing.
+
+3. Return Transit:
+   - On the final day (departure day), account for hotel check-out, transit to station/airport, and the return departure time.
+
+════════════════════════════════════════════════════════════════
+HOTEL SELECTION
+════════════════════════════════════════════════════════════════
+
+- Choose ONE hotel from TripContext.hotels.
+- Hotels are pre-filtered to match the budget. Pick the highest-rated.
+- Reference by exact hotel "id" and "name".
+
+════════════════════════════════════════════════════════════════
+DAY-BY-DAY ACTIVITIES
+════════════════════════════════════════════════════════════════
+
+Plan activities only for the actual days and hours at the destination.
+Use pace to decide how many attractions per day:
+  relaxed:   2-3 attractions per day
+  moderate:  4-5 attractions per day
+  intensive: 6-7 attractions per day
+
+Group geographically close attractions on the same day using lat/lon.
+Suggest realistic start_time (HH:MM 24h) and duration_minutes for each visit.
+
+════════════════════════════════════════════════════════════════
+PLANNING NOTES
+════════════════════════════════════════════════════════════════
+
+Fill planning_notes with a 2-3 sentence overall trip summary including:
+- The transport choice and why it was selected
+- Hotel selection rationale
+- General activity theme/flow
+
+════════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+════════════════════════════════════════════════════════════════
+
+Return ONLY a valid JSON object matching the Itinerary schema.
+Do not include markdown, explanations, or commentary outside the JSON.
+Use null for any optional field you cannot fill from available data.
+All string fields that come from the TripContext MUST be copied verbatim.
+
+### EXPECTED OUTPUT JSON SCHEMA:
+Return ONLY a valid JSON object matching this schema:
+{
+  "$defs": {
+    "Activity": {
+      "description": "A single attraction visit within a day.\n\nattraction_name is included so the response is human-readable without\na secondary lookup, but the authoritative reference is attraction_name\nmatched against AttractionContext.name (attractions have no ID field).\nstart_time and duration_minutes are the LLM's scheduling decisions.",
+      "properties": {
+        "attraction_name": {
+          "description": "Must exactly match an AttractionContext.name from TripContext.",
+          "title": "Attraction Name",
+          "type": "string"
+        },
+        "start_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Suggested visit start time in HH:MM (24h). Null if unknown.",
+          "title": "Start Time"
+        },
+        "duration_minutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Suggested visit duration in minutes. Null if unknown.",
+          "title": "Duration Minutes"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional visit tip or reasoning. Must not contain invented facts.",
+          "title": "Notes"
+        },
+        "estimated_cost": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Estimated entry fee or activity cost in INR.",
+          "title": "Estimated Cost"
+        }
+      },
+      "required": [
+        "attraction_name"
+      ],
+      "title": "Activity",
+      "type": "object"
+    },
+    "CostBreakdown": {
+      "description": "Estimated cost calculation for the trip.",
+      "properties": {
+        "transport_cost": {
+          "default": 0.0,
+          "description": "Total transport cost (outbound + return for all travelers)",
+          "title": "Transport Cost",
+          "type": "number"
+        },
+        "hotel_cost": {
+          "default": 0.0,
+          "description": "Total hotel accommodation cost for all nights",
+          "title": "Hotel Cost",
+          "type": "number"
+        },
+        "activities_estimated_cost": {
+          "default": 0.0,
+          "description": "Estimated activities cost",
+          "title": "Activities Estimated Cost",
+          "type": "number"
+        },
+        "currency": {
+          "default": "INR",
+          "description": "Currency code",
+          "title": "Currency",
+          "type": "string"
+        },
+        "total_cost": {
+          "default": 0.0,
+          "description": "Overall total estimated trip cost",
+          "title": "Total Cost",
+          "type": "number"
+        }
+      },
+      "title": "CostBreakdown",
+      "type": "object"
+    },
+    "DayPlan": {
+      "description": "Activities and transport legs for a single trip day.",
+      "properties": {
+        "day": {
+          "description": "Day number, starting from 1.",
+          "minimum": 1,
+          "title": "Day",
+          "type": "integer"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Calendar date for this day in YYYY-MM-DD format.",
+          "title": "Date"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional thematic label, e.g. 'Arrival & City Centre'.",
+          "title": "Theme"
+        },
+        "activities": {
+          "description": "Ordered list of attraction visits for this day.",
+          "items": {
+            "$ref": "#/$defs/Activity"
+          },
+          "title": "Activities",
+          "type": "array"
+        },
+        "transport": {
+          "description": "Transport legs for this day (origin travel, inter-attraction, etc.).",
+          "items": {
+            "$ref": "#/$defs/TransportDecision"
+          },
+          "title": "Transport",
+          "type": "array"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "title": "DayPlan",
+      "type": "object"
+    },
+    "HotelDecision": {
+      "description": "The LLM's hotel selection — references a HotelContext.id from TripContext.",
+      "properties": {
+        "hotel_id": {
+          "description": "Must match a HotelContext.id from TripContext.hotels.",
+          "title": "Hotel Id",
+          "type": "string"
+        },
+        "hotel_name": {
+          "description": "Must match the corresponding HotelContext.name. Included for readability.",
+          "title": "Hotel Name",
+          "type": "string"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why this hotel was selected (budget fit, rating, etc.).",
+          "title": "Reasoning"
+        },
+        "price_per_night": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Price per night from context in INR.",
+          "title": "Price Per Night"
+        },
+        "price_total": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Total price for all nights in INR.",
+          "title": "Price Total"
+        }
+      },
+      "required": [
+        "hotel_id",
+        "hotel_name"
+      ],
+      "title": "HotelDecision",
+      "type": "object"
+    },
+    "ItinerarySummary": {
+      "properties": {
+        "destination": {
+          "title": "Destination",
+          "type": "string"
+        },
+        "origin": {
+          "title": "Origin",
+          "type": "string"
+        },
+        "days": {
+          "title": "Days",
+          "type": "integer"
+        },
+        "travelers": {
+          "title": "Travelers",
+          "type": "integer"
+        },
+        "pace": {
+          "description": "relaxed | moderate | intensive",
+          "title": "Pace",
+          "type": "string"
+        },
+        "budget_level": {
+          "description": "low | medium | high",
+          "title": "Budget Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "destination",
+        "origin",
+        "days",
+        "travelers",
+        "pace",
+        "budget_level"
+      ],
+      "title": "ItinerarySummary",
+      "type": "object"
+    },
+    "TransportDecision": {
+      "description": "The LLM's complete transport choice for one journey leg.\n\nALL factual fields (times, fares, seats) must be copied EXACTLY from\nthe pre-filtered TripContext payload — never invented.\n\nFormat contract (how this renders in the itinerary):\n    {train_number} - {train_name}\n    Departs {origin} on {departure_date} @ {departure_time}\n    Arrives {destination} on {arrival_date} @ {arrival_time}\n    Class: {travel_class} | Seats: {seats_available} {seat_status} | Rs.{fare_per_person}/person",
+      "properties": {
+        "leg": {
+          "description": "Human-readable route, e.g. 'Chennai → Coimbatore'.",
+          "title": "Leg",
+          "type": "string"
+        },
+        "mode": {
+          "description": "Chosen mode: 'train', 'bus', or 'flight'.",
+          "title": "Mode",
+          "type": "string"
+        },
+        "train_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact train_number from TripContext outbound_trains / return_trains.",
+          "title": "Train Number"
+        },
+        "train_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact train_name from TripContext. Do not invent or abbreviate.",
+          "title": "Train Name"
+        },
+        "operator_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact operator_name from TripContext outbound_buses / return_buses.",
+          "title": "Operator Name"
+        },
+        "bus_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact bus_type from TripContext, e.g. 'AC Sleeper (2+1)'.",
+          "title": "Bus Type"
+        },
+        "flight_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact flight_id from TripContext outbound_flights / return_flights.",
+          "title": "Flight Id"
+        },
+        "airline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact airline name from TripContext, e.g. 'IndiGo', 'Air India'.",
+          "title": "Airline"
+        },
+        "flight_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact flight_number from TripContext, e.g. '6E 479'.",
+          "title": "Flight Number"
+        },
+        "departure_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Departure date YYYY-MM-DD. Copy from payload. May be day-1 for overnight trains.",
+          "title": "Departure Date"
+        },
+        "departure_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Departure time HH:MM (24h). Copy exactly from payload.",
+          "title": "Departure Time"
+        },
+        "arrival_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Arrival date YYYY-MM-DD. Copy from payload.",
+          "title": "Arrival Date"
+        },
+        "arrival_time": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Arrival time HH:MM (24h). Copy exactly from payload.",
+          "title": "Arrival Time"
+        },
+        "travel_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chosen class code: '1A','2A','3A','CC','SL','2S','GN' or bus seat type.",
+          "title": "Travel Class"
+        },
+        "seat_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'AVL' (confirmed) or 'RAC' (reservation against cancellation).",
+          "title": "Seat Status"
+        },
+        "seats_available": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live seat count from payload. Copy exactly — do not guess.",
+          "title": "Seats Available"
+        },
+        "fare_per_person": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Fare in INR per person for the chosen class. Copy from payload.",
+          "title": "Fare Per Person"
+        },
+        "departure_station": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact boarding station or airport, e.g. 'Rajapalayam Railway Station (RJPM)' or 'Madurai Airport (IXM)' or 'Chennai Central (MAS)'.",
+          "title": "Departure Station"
+        },
+        "arrival_station": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Exact destination station or airport, e.g. 'New Delhi Railway Station (NDLS)' or 'Indira Gandhi International Airport (DEL)'.",
+          "title": "Arrival Station"
+        },
+        "is_direct": {
+          "default": true,
+          "description": "True if departing directly from the origin city, False if departing from a hub/nearby city.",
+          "title": "Is Direct",
+          "type": "boolean"
+        },
+        "instruction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Clear, easy-to-read traveler instruction for this journey leg.",
+          "title": "Instruction"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why this option was selected (class fit, timing, availability).",
+          "title": "Reasoning"
+        }
+      },
+      "required": [
+        "leg",
+        "mode"
+      ],
+      "title": "TransportDecision",
+      "type": "object"
+    }
+  },
+  "description": "The complete structured trip plan produced by the Planning Agent.\n\nGROUNDING CONTRACT:\n  - hotel.hotel_id must match a TripContext.hotels[*].id.\n  - outbound_transport / return_transport reference TripContext options.\n  - All attraction_name values must match TripContext.attractions[*].name.\n  - The agent must not invent any value not present in TripContext.",
+  "properties": {
+    "summary": {
+      "$ref": "#/$defs/ItinerarySummary"
+    },
+    "hotel": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HotelDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Chosen hotel. Null if no hotels were available in context."
+    },
+    "outbound_transport": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TransportDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the traveler gets from origin to destination."
+    },
+    "return_transport": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TransportDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "How the traveler returns from destination to origin."
+    },
+    "days": {
+      "description": "Day-by-day activity plans.",
+      "items": {
+        "$ref": "#/$defs/DayPlan"
+      },
+      "title": "Days",
+      "type": "array"
+    },
+    "cost_breakdown": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CostBreakdown"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Validated cost calculation (transport + accommodation)."
+    },
+    "total_cost": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Total estimated cost in INR.",
+      "title": "Total Cost"
+    },
+    "planning_notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional high-level planning notes from the agent.",
+      "title": "Planning Notes"
+    }
+  },
+  "required": [
+    "summary"
+  ],
+  "title": "Itinerary",
+  "type": "object"
+}
+
+### USER REQUEST & TRIP CONTEXT:
+Here is the TripContext for this planning request:
+
+{
+  "trip": {
+    "origin": "rajapalayam",
+    "destination": "delhi",
+    "start_date": "2026-10-15",
+    "end_date": "2026-10-18",
+    "days": 3,
+    "travelers": 2,
+    "preferences": {
+      "budget": "medium",
+      "transport_mode": "train",
+      "berth_preference": "any",
+      "hotel_category": "mid_range",
+      "pace": "moderate",
+      "interests": [
+        "history",
+        "nature"
+      ],
+      "family_friendly": null,
+      "food": null
+    }
+  },
+  "attractions": [
+    {
+      "name": "India Gate",
+      "address": "Kartavya Path, India Gate, New Delhi, Delhi 110001, India",
+      "rating": 4.6,
+      "review_count": 287305,
+      "latitude": 28.612911999999998,
+      "longitude": 77.2295097,
+      "types": [
+        "monument",
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Mehrauli Archaeological Park Walk",
+      "address": "Anuvrat Marg, opposite Qutab Minar Metro Station, Christian Colony, Mehrauli, New Delhi, Delhi 110030, India",
+      "rating": 4.4,
+      "review_count": 4005,
+      "latitude": 28.520204099999997,
+      "longitude": 77.187679,
+      "types": [
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Humayun’s Tomb",
+      "address": "Hazrat Nizamuddin Aulia Dargah, Mathura Rd, Nizamuddin, Nizamuddin East, New Delhi, Delhi 110013, India",
+      "rating": 4.5,
+      "review_count": 51930,
+      "latitude": 28.5932848,
+      "longitude": 77.2507492,
+      "types": [
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Purana Qila",
+      "address": "Mathura Rd, Near Delhi Zoo, J65V+RFH, Pragati Maidan, New Delhi, Delhi 110001, India",
+      "rating": 4.2,
+      "review_count": 33463,
+      "latitude": 28.6095744,
+      "longitude": 77.24373709999999,
+      "types": [
+        "tourist_attraction",
+        "museum",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Safdarjung Tomb",
+      "address": "Airforce Golf Course, Delhi Race Club, New Delhi, Delhi 110003, India",
+      "rating": 4.4,
+      "review_count": 16362,
+      "latitude": 28.5894156,
+      "longitude": 77.2106219,
+      "types": [
+        "monument",
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "The Garden of Five Senses",
+      "address": "Westend Marg, Saidulajab, Saiyad ul Ajaib, Saket, New Delhi, Delhi 110030, India",
+      "rating": 4.1,
+      "review_count": 24638,
+      "latitude": 28.513403,
+      "longitude": 77.1975227,
+      "types": [
+        "garden",
+        "tourist_attraction",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Qutb Minar",
+      "address": "Seth Sarai, Mehrauli, New Delhi, Delhi 110030, India",
+      "rating": 4.5,
+      "review_count": 163035,
+      "latitude": 28.5244754,
+      "longitude": 77.18552059999999,
+      "types": [
+        "monument",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Red Fort",
+      "address": "Netaji Subhash Marg, Old Delhi, Lal Qila, Chandni Chowk, New Delhi, Delhi, 110006, India",
+      "rating": 4.5,
+      "review_count": 182918,
+      "latitude": 28.656159199999998,
+      "longitude": 77.2410203,
+      "types": [
+        "tourist_attraction",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Lodhi Garden",
+      "address": "Lodhi Rd, Lodhi Gardens, Lodhi Estate, New Delhi, Delhi 110003, India",
+      "rating": 4.5,
+      "review_count": 58233,
+      "latitude": 28.593095899999998,
+      "longitude": 77.21967939999999,
+      "types": [
+        "garden",
+        "tourist_attraction",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Hauz Khas Fort",
+      "address": "H53V+7C6, Hauz Khas Fort Rd, Hauz Khas Village, Deer Park, Hauz Khas, New Delhi, Delhi 110016, India",
+      "rating": 4.4,
+      "review_count": 6310,
+      "latitude": 28.5531541,
+      "longitude": 77.1935275,
+      "types": [
+        "historical_landmark",
+        "tourist_attraction",
+        "historical_place",
+        "point_of_interest",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Dilli Haat - INA",
+      "address": "INA Market, Dilli Haat, Kidwai Nagar West, Kidwai Nagar, New Delhi, Delhi 110023, India",
+      "rating": 4.4,
+      "review_count": 47484,
+      "latitude": 28.5733233,
+      "longitude": 77.2075473,
+      "types": [
+        "event_venue",
+        "point_of_interest",
+        "service",
+        "establishment"
+      ]
+    },
+    {
+      "name": "Bharat Darshan Park",
+      "address": "Punjabi Bagh Xing, Ring Rd, JJ Colony, Moti Nagar, New Delhi, Delhi, 110026, India",
+      "rating": 4.3,
+      "review_count": 9780,
+      "latitude": 28.666675599999998,
+      "longitude": 77.1353554,
+      "types": [
+        "park",
+        "tourist_attraction",
+        "garden",
+        "point_of_interest",
+        "establishment"
+      ]
+    }
+  ],
+  "hotels": [
+    {
+      "id": "ChoQpfX62fL_js7iARoNL2cvMTF6Nm0zMm4xNxAC",
+      "name": "Tofino -1 BHK airconditioned serviced apartment with a forest view fully furnished with wifi ,fridge,smart tv,washing machine , operational kitchen and lift facility",
+      "rating": 5.0,
+      "hotel_class": null,
+      "price_per_night": 2100.0,
+      "price_total": 6300.0,
+      "currency": "INR",
+      "amenities": [
+        "Air conditioning",
+        "Elevator",
+        "Heating",
+        "Kitchen",
+        "Oven stove"
+      ]
+    },
+    {
+      "id": "ChkIudmv7L3Y3eRwGg0vZy8xMW00Mm5nNTE1EAE",
+      "name": "Minimalist Poshtel & Suites",
+      "rating": 4.0,
+      "hotel_class": 3,
+      "price_per_night": 2155.0,
+      "price_total": 6464.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Parking ($)",
+        "Air conditioning",
+        "Pet-friendly"
+      ]
+    },
+    {
+      "id": "ChgIivuEl8_Fz-qzARoLL2cvMXRoMDh0c2sQAQ",
+      "name": "Tivoli Garden Resort",
+      "rating": 4.0,
+      "hotel_class": 5,
+      "price_per_night": 4488.0,
+      "price_total": 13463.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Free parking",
+        "Outdoor pool",
+        "Hot tub"
+      ]
+    },
+    {
+      "id": "ChoI5IyKlKG78f_gARoNL2cvMTFmeWxrNmNmZhAB",
+      "name": "Taurus Sarovar Portico Hotel, New Delhi",
+      "rating": 3.8,
+      "hotel_class": 4,
+      "price_per_night": 4921.0,
+      "price_total": 14762.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Free parking",
+        "Air conditioning",
+        "Fitness center"
+      ]
+    },
+    {
+      "id": "ChkI7fCm6Nu7tPafARoML2cvMTI0eWZ0MGhoEAE",
+      "name": "Golden Tulip Essential",
+      "rating": 3.8,
+      "hotel_class": 3,
+      "price_per_night": 3388.0,
+      "price_total": 10163.0,
+      "currency": "INR",
+      "amenities": [
+        "Free breakfast",
+        "Free Wi-Fi",
+        "Parking",
+        "Air conditioning",
+        "Bar"
+      ]
+    }
+  ],
+  "outbound_trains": [
+    {
+      "train_number": "12615",
+      "train_name": "GRAND TRUNK EXP",
+      "departure_station": "Chennai Central (MAS)",
+      "arrival_station": "NEW DELHI (NDLS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Rajapalayam (RJPM) and Delhi - All stations (NDLS), or their division hubs. Found verified trains via state capitals Chennai Central (MAS) and NEW DELHI (NDLS).",
+      "departure_date": "2026-10-15",
+      "departure_time": "18:15",
+      "arrival_date": "2026-10-17",
+      "arrival_time": "05:10",
+      "duration": "34h 55m",
+      "distance_km": 2188,
+      "has_pantry": true,
+      "rating": 4.1,
+      "travel_class": "1A",
+      "fare_per_person": 5375,
+      "seat_status": "AVL",
+      "seats_available": 6
+    },
+    {
+      "train_number": "20493",
+      "train_name": "MDU CDG SF EXP",
+      "departure_station": "Perambur (PER)",
+      "arrival_station": "Delhi Hazrat Nizamuddin (NZM)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Rajapalayam (RJPM) and Delhi - All stations (NDLS), or their division hubs. Found verified trains via state capitals Chennai Central (MAS) and NEW DELHI (NDLS).",
+      "departure_date": "2026-10-15",
+      "departure_time": "09:15",
+      "arrival_date": "2026-10-16",
+      "arrival_time": "21:35",
+      "duration": "36h 20m",
+      "distance_km": 2180,
+      "has_pantry": false,
+      "rating": 4.2,
+      "travel_class": "SL",
+      "fare_per_person": 890,
+      "seat_status": "RAC",
+      "seats_available": 31
+    },
+    {
+      "train_number": "16031",
+      "train_name": "ANDAMAN EXPRESS",
+      "departure_station": "Chennai Central (MAS)",
+      "arrival_station": "NEW DELHI (NDLS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Rajapalayam (RJPM) and Delhi - All stations (NDLS), or their division hubs. Found verified trains via state capitals Chennai Central (MAS) and NEW DELHI (NDLS).",
+      "departure_date": "2026-10-15",
+      "departure_time": "05:10",
+      "arrival_date": "2026-10-16",
+      "arrival_time": "20:55",
+      "duration": "39h 45m",
+      "distance_km": 2211,
+      "has_pantry": false,
+      "rating": 3.8,
+      "travel_class": "SL",
+      "fare_per_person": 865,
+      "seat_status": "RAC",
+      "seats_available": 66
+    }
+  ],
+  "return_trains": [
+    {
+      "train_number": "12616",
+      "train_name": "GRAND TRUNK EXP",
+      "departure_station": "NEW DELHI (NDLS)",
+      "arrival_station": "Chennai Central (MAS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Delhi - All stations (NDLS) and Rajapalayam (RJPM), or their division hubs. Found verified trains via state capitals NEW DELHI (NDLS) and Chennai Central (MAS).",
+      "departure_date": "2026-10-18",
+      "departure_time": "16:10",
+      "arrival_date": "2026-10-20",
+      "arrival_time": "04:40",
+      "duration": "36h 30m",
+      "distance_km": 2180,
+      "has_pantry": true,
+      "rating": 3.8,
+      "travel_class": "1A",
+      "fare_per_person": 5375,
+      "seat_status": "AVL",
+      "seats_available": 1
+    },
+    {
+      "train_number": "12622",
+      "train_name": "TAMILNADU SF EXP",
+      "departure_station": "NEW DELHI (NDLS)",
+      "arrival_station": "Chennai Central (MAS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Delhi - All stations (NDLS) and Rajapalayam (RJPM), or their division hubs. Found verified trains via state capitals NEW DELHI (NDLS) and Chennai Central (MAS).",
+      "departure_date": "2026-10-18",
+      "departure_time": "21:05",
+      "arrival_date": "2026-10-20",
+      "arrival_time": "06:35",
+      "duration": "33h 30m",
+      "distance_km": 2180,
+      "has_pantry": true,
+      "rating": 4.1,
+      "travel_class": "SL",
+      "fare_per_person": 890,
+      "seat_status": "RAC",
+      "seats_available": 16
+    },
+    {
+      "train_number": "22404",
+      "train_name": "NDLS PDY SF EXP",
+      "departure_station": "NEW DELHI (NDLS)",
+      "arrival_station": "Chennai Egmore (MS)",
+      "route_type": "state_capital_fallback",
+      "is_direct": false,
+      "fallback_reason": "No direct trains found between Delhi - All stations (NDLS) and Rajapalayam (RJPM), or their division hubs. Found verified trains via state capitals NEW DELHI (NDLS) and Chennai Central (MAS).",
+      "departure_date": "2026-10-18",
+      "departure_time": "23:15",
+      "arrival_date": "2026-10-20",
+      "arrival_time": "09:25",
+      "duration": "34h 10m",
+      "distance_km": 2181,
+      "has_pantry": true,
+      "rating": 3.7,
+      "travel_class": "2A",
+      "fare_per_person": 3190,
+      "seat_status": "RAC",
+      "seats_available": 11
+    }
+  ],
+  "outbound_buses": [],
+  "return_buses": [],
+  "outbound_flights": [
+    {
+      "flight_id": "fl_a30f0e1a05d9c312",
+      "airline": "IndiGo",
+      "flight_number": "6E 2365",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 08:30",
+      "arrival_time": "2026-10-15 12:00",
+      "duration": "3h 30m",
+      "stops": 0,
+      "price": 22604.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    },
+    {
+      "flight_id": "fl_234f899873cb22fd",
+      "airline": "SriLankan",
+      "flight_number": "UL 140, UL 191",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 15:30",
+      "arrival_time": "2026-10-16 04:15",
+      "duration": "12h 45m",
+      "stops": 1,
+      "price": 56734.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    },
+    {
+      "flight_id": "fl_f34ce53bfe9b387c",
+      "airline": "Air India Express",
+      "flight_number": "IX 1832, AI 2468",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 11:55",
+      "arrival_time": "2026-10-15 16:55",
+      "duration": "5h",
+      "stops": 1,
+      "price": null,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    },
+    {
+      "flight_id": "fl_7f6fc14678380df9",
+      "airline": "SriLankan",
+      "flight_number": "UL 140, QR 655, 6E 1346",
+      "departure_airport": "IXM",
+      "departure_station": "Madurai Airport (IXM)",
+      "arrival_airport": "DEL",
+      "arrival_station": "Indira Gandhi International Airport (DEL)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-15 15:30",
+      "arrival_time": "2026-10-16 08:55",
+      "duration": "17h 25m",
+      "stops": 2,
+      "price": 192176.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    }
+  ],
+  "return_flights": [
+    {
+      "flight_id": "fl_75044828079e3d02",
+      "airline": "IndiGo",
+      "flight_number": "6E 2364",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 04:50",
+      "arrival_time": "2026-10-18 08:00",
+      "duration": "3h 10m",
+      "stops": 0,
+      "price": 23240.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_db531deeb45179f8",
+      "airline": "IndiGo",
+      "flight_number": "6E 6470, 6E 2047",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 06:55",
+      "arrival_time": "2026-10-18 15:25",
+      "duration": "8h 30m",
+      "stops": 1,
+      "price": 25658.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_77df77620d0df6fb",
+      "airline": "IndiGo",
+      "flight_number": "6E 203, 6E 6781",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 07:10",
+      "arrival_time": "2026-10-18 16:40",
+      "duration": "9h 30m",
+      "stops": 1,
+      "price": 28824.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_9d742c4bd556185e",
+      "airline": "SriLankan",
+      "flight_number": "UL 192, UL 139",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 05:15",
+      "arrival_time": "2026-10-18 14:30",
+      "duration": "9h 15m",
+      "stops": 1,
+      "price": 60560.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": true
+    },
+    {
+      "flight_id": "fl_96fd145c899c2992",
+      "airline": "Air India",
+      "flight_number": "AI 2467, IX 1831",
+      "departure_airport": "DEL",
+      "departure_station": "Indira Gandhi International Airport (DEL)",
+      "arrival_airport": "IXM",
+      "arrival_station": "Madurai Airport (IXM)",
+      "departure_city": "",
+      "departure_airport_distance_km": 0.0,
+      "arrival_city": "",
+      "arrival_airport_distance_km": 0.0,
+      "is_direct": true,
+      "departure_time": "2026-10-18 10:00",
+      "arrival_time": "2026-10-19 11:25",
+      "duration": "25h 25m",
+      "stops": 1,
+      "price": 29929.0,
+      "currency": "INR",
+      "travel_class": "Economy",
+      "is_best_flight": false
+    }
+  ],
+  "route": {
+    "distance_km": 2602.49,
+    "modes": [
+      {
+        "mode": "driving",
+        "duration_minutes": 2583
+      },
+      {
+        "mode": "transit",
+        "duration_minutes": 6544
+      }
+    ]
+  },
+  "flight_resolution": null
+}
+
+Produce the Itinerary JSON as specified.

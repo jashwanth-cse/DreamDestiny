@@ -30,6 +30,23 @@ from app.services.station_service import StationService
 logger = logging.getLogger(__name__)
 
 
+def _has_bookable_seats(trains: List[Dict[str, Any]]) -> bool:
+    """Check if at least one train has an AVL (Available) or RAC confirmed seat.
+    If no availability information is present (unenriched or mock data), treat as bookable.
+    """
+    has_any_avail_info = False
+    for t in trains:
+        for c in t.get("classes", []):
+            avail = (c.get("availability") or "").strip().upper()
+            if avail:
+                has_any_avail_info = True
+                if avail.startswith("AVL") or avail.startswith("RAC"):
+                    return True
+    if not has_any_avail_info:
+        return True
+    return False
+
+
 def _clean_station_info(station_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Produce a clean, consistent station metadata dict for API responses."""
     if not station_dict:
@@ -160,6 +177,7 @@ class RouteFallbackService:
         logger.info(
             "[route_fallback] Level 1 returned 0 direct trains. Evaluating Level 2 (Division Fallback)..."
         )
+        saved_fallback_result: Optional[Dict[str, Any]] = None
 
         src_hub = self.division_resolver.get_hub(orig_source_station)
         dst_hub = self.division_resolver.get_hub(orig_dest_station)
@@ -196,7 +214,8 @@ class RouteFallbackService:
             searches_attempted += 1
 
             div_trains = div_result.get("trains", [])
-            if div_trains:
+            has_bookable = _has_bookable_seats(div_trains)
+            if div_trains and has_bookable:
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 div_result.update({
                     "route_type": "division_fallback",
@@ -214,10 +233,30 @@ class RouteFallbackService:
                     "latency_ms": round(elapsed_ms, 2),
                 })
                 logger.info(
-                    "[route_fallback] division fallback found %d train(s) (searches: %d, time: %.1fms)",
+                    "[route_fallback] division fallback found %d train(s) with confirmed/RAC seats (searches: %d, time: %.1fms)",
                     len(div_trains), searches_attempted, elapsed_ms
                 )
                 return div_result
+            elif div_trains and not has_bookable:
+                logger.info(
+                    "[route_fallback] division fallback returned %d train(s), but all seats are waitlisted (WL). Checking Level 3 (State-Capital) for confirmed seats...",
+                    len(div_trains)
+                )
+                # Save div_result with proper metadata as backup in case Level 3 has no trains
+                div_result.update({
+                    "route_type": "division_fallback",
+                    "original_source": _clean_station_info(orig_source_station),
+                    "original_destination": _clean_station_info(orig_dest_station),
+                    "actual_source": _clean_station_info(effective_src_hub),
+                    "actual_destination": _clean_station_info(effective_dst_hub),
+                    "fallback_reason": (
+                        f"No direct trains found between {orig_source_station['station_name']} ({orig_src_code}) "
+                        f"and {orig_dest_station['station_name']} ({orig_dst_code}). "
+                        f"Found trains via division hubs {effective_src_hub['station_name']} ({hub_src_code}) "
+                        f"and {effective_dst_hub['station_name']} ({hub_dst_code}) (waitlisted)."
+                    ),
+                })
+                saved_fallback_result = div_result
         else:
             logger.info(
                 "[route_fallback] Level 2 skipped: division hubs (%s -> %s) duplicate direct route or self-loop",
@@ -292,7 +331,19 @@ class RouteFallbackService:
                 cap_src_code, cap_dst_code
             )
 
-        # ── LEVEL 4: No Route Found ──────────────────────────────────────────
+        # ── LEVEL 4: No Route Found (or return saved WL fallback) ───────────
+        if saved_fallback_result:
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            saved_fallback_result.update({
+                "fallback_searches_count": searches_attempted,
+                "latency_ms": round(elapsed_ms, 2),
+            })
+            logger.info(
+                "[route_fallback] returning saved division fallback with %d train(s) since state capital route had no trains",
+                len(saved_fallback_result.get("trains", []))
+            )
+            return saved_fallback_result
+
         elapsed_ms = (time.perf_counter() - t0) * 1000
         logger.info(
             "[route_fallback] no route found for %s -> %s after %d search(es) (time: %.1fms)",

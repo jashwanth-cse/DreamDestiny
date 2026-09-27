@@ -15,9 +15,13 @@ Make sure all 6 services are running first:
 """
 
 import json
+import sys
 import time
 import urllib.request
 import urllib.error
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 # ==============================================================================
@@ -25,8 +29,8 @@ import urllib.error
 # ==============================================================================
 
 TRIP_REQUEST = {
-    "origin": "Panipat",
-    "destination": "Rajapalayam",
+    "origin": "panipat",
+    "destination": "rajapalayam",
     "start_date": "2026-10-15",
     "end_date": "2026-10-18",
     "travelers": 2,
@@ -98,32 +102,50 @@ def print_transport_block(label, t):
         return
     print()
     print("  " + label)
+    
+    # Instruction line
+    instr = t.get("instruction")
+    if instr:
+        print("    >> %s" % instr)
+        
+    dep_stn = t.get("departure_station") or ""
+    arr_stn = t.get("arrival_station") or ""
+    is_direct = t.get("is_direct", True)
+    tag = "[DIRECT]" if is_direct else "[BOARD FROM HUB/NEARBY CITY]"
+    
+    if dep_stn or arr_stn:
+        print("    Route   : %s -> %s %s" % (dep_stn or "?", arr_stn or "?", tag))
+
     if t.get("mode") == "flight":
-        print("    Flight %s (%s) - %s" % (t.get("flight_number", "?"), t.get("flight_id", "?"), t.get("airline", "?")))
-        print("    Departs %s @ %s" % (t.get("departure_date", ""), t.get("departure_time", "?")))
-        print("    Arrives %s @ %s" % (t.get("arrival_date", ""), t.get("arrival_time", "?")))
-        print("    Class: %s | Fare: Rs.%s/person" % (
+        print("    Flight  : %s (%s) - %s" % (t.get("flight_number", "?"), t.get("flight_id", "?"), t.get("airline", "?")))
+        print("    Schedule: Departs %s @ %s -> Arrives %s @ %s" % (
+            t.get("departure_date", ""), t.get("departure_time", "?"),
+            t.get("arrival_date", ""), t.get("arrival_time", "?")
+        ))
+        print("    Details : Class: %s | Fare: Rs.%s/person" % (
             t.get("travel_class", "?"),
             t.get("fare_per_person", "?")
         ))
     elif t.get("mode") == "train":
-        print("    %s - %s" % (t.get("train_number", "?"), t.get("train_name", "?")))
-        print("    Departs %s @ %s" % (t.get("departure_date", ""), t.get("departure_time", "?")))
-        print("    Arrives %s @ %s" % (t.get("arrival_date", ""), t.get("arrival_time", "?")))
-        print("    Class: %s | Seats: %s %s | Rs.%s/person" % (
+        print("    Train   : %s - %s" % (t.get("train_number", "?"), t.get("train_name", "?")))
+        print("    Schedule: Departs %s @ %s -> Arrives %s @ %s" % (
+            t.get("departure_date", ""), t.get("departure_time", "?"),
+            t.get("arrival_date", ""), t.get("arrival_time", "?")
+        ))
+        print("    Details : Class: %s | Seats: %s %s | Rs.%s/person" % (
             t.get("travel_class", "?"),
             t.get("seats_available", "?"),
             t.get("seat_status", ""),
             t.get("fare_per_person", "?")
         ))
     else:
-        print("    %s - %s" % (t.get("operator_name", "?"), t.get("bus_type", "?")))
-        print("    Departs @ %s | Arrives @ %s" % (
+        print("    Bus     : %s - %s" % (t.get("operator_name", "?"), t.get("bus_type", "?")))
+        print("    Schedule: Departs @ %s -> Arrives @ %s" % (
             t.get("departure_time", "?"), t.get("arrival_time", "?")))
-        print("    Seats: %s | Rs.%s/person" % (
+        print("    Details : Seats: %s | Rs.%s/person" % (
             t.get("seats_available", "?"), t.get("fare_per_person", "?")))
     if t.get("reasoning"):
-        print("    Reason: %s" % t.get("reasoning"))
+        print("    Reason  : %s" % t.get("reasoning"))
 
 
 def print_itinerary(res):

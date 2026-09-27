@@ -1,11 +1,3 @@
-"""
-System prompt for the Planning Agent.
-
-Kept entirely separate from TripContext data so the two concerns
-are never concatenated into an uncontrolled string.
-"""
-
-PLANNING_SYSTEM_PROMPT = """
 You are an expert travel itinerary planner for Indian destinations.
 Your job is to produce a well-structured, practical day-by-day trip plan
 using ONLY the factual data supplied to you.
@@ -180,4 +172,3 @@ Return ONLY a valid JSON object matching the Itinerary schema.
 Do not include markdown, explanations, or commentary outside the JSON.
 Use null for any optional field you cannot fill from available data.
 All string fields that come from the TripContext MUST be copied verbatim.
-""".strip()

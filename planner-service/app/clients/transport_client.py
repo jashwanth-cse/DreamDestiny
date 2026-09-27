@@ -170,10 +170,16 @@ class TrainClient(TrainProvider):
 
         try:
             data = response.json()
-            trains_raw = data.get("data", {}).get("trains", [])
+            train_data = data.get("data", {})
+            trains_raw = train_data.get("trains", [])
+            route_type = train_data.get("route_type", "direct")
+            fallback_reason = train_data.get("fallback_reason")
+
             result = []
             for t in trains_raw:
                 # Train model uses alias "from" for the from_ field
+                from_stn = t.get("from") or {}
+                to_stn = t.get("to") or {}
                 rec_class_raw = t.get("recommended_class")
                 result.append(
                     TrainContext(
@@ -189,6 +195,12 @@ class TrainClient(TrainProvider):
                         rating=t.get("rating", 0.0),
                         has_pantry=t.get("has_pantry", False),
                         running_days=t.get("running_days", []),
+                        from_station_code=from_stn.get("code"),
+                        from_station_name=from_stn.get("name"),
+                        to_station_code=to_stn.get("code"),
+                        to_station_name=to_stn.get("name"),
+                        route_type=route_type,
+                        fallback_reason=fallback_reason,
                         recommended_class=(
                             _parse_travel_class(rec_class_raw)
                             if rec_class_raw else None

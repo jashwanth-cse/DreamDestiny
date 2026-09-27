@@ -102,6 +102,12 @@ class TrainContext(BaseModel):
     rating: float
     has_pantry: bool
     running_days: list[str] = Field(default_factory=list)
+    from_station_code: Optional[str] = None
+    from_station_name: Optional[str] = None
+    to_station_code: Optional[str] = None
+    to_station_name: Optional[str] = None
+    route_type: Optional[str] = "direct"
+    fallback_reason: Optional[str] = None
     recommended_class: Optional[TravelClassContext] = None
     classes: list[TravelClassContext] = Field(default_factory=list)
 

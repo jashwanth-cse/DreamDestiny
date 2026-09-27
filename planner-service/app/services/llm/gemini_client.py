@@ -9,6 +9,7 @@ Responsibilities:
   - Handle and wrap all SDK errors without leaking keys or internals.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -70,15 +71,23 @@ class GeminiClient:
             response_schema=json_schema,
         )
 
-        try:
-            response = await self._client.aio.models.generate_content(
-                model=_MODEL,
-                contents=user_content,
-                config=config,
-            )
-        except Exception as exc:
-            logger.error("Gemini API error: %s", exc)
-            raise GeminiError("Gemini API request failed.") from exc
+        response = None
+        for attempt in range(1, 4):
+            try:
+                response = await self._client.aio.models.generate_content(
+                    model=_MODEL,
+                    contents=user_content,
+                    config=config,
+                )
+                break
+            except Exception as exc:
+                err_str = str(exc)
+                if attempt < 3 and ("503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str or "ResourceExhausted" in err_str):
+                    logger.warning("Gemini API transient error (%s). Retrying attempt %d/3...", exc, attempt + 1)
+                    await asyncio.sleep(2.5 * attempt)
+                    continue
+                logger.error("Gemini API error: %s", exc)
+                raise GeminiError("Gemini API request failed.") from exc
 
         try:
             raw_text = response.text
