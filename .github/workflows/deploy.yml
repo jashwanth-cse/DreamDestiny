@@ -43,8 +43,8 @@ jobs:
             echo "[2/5] Rebuilding and waiting for containers to become healthy..."
             docker compose -f docker-compose.prod.yml up -d --build --wait --remove-orphans
 
-            echo "[3/5] Performing zero-downtime NGINX reload for fresh container IP resolution..."
-            docker exec dream-destiny-gateway nginx -s reload || docker compose -f docker-compose.prod.yml restart gateway
+            echo "[3/5] Refreshing gateway to bind updated configuration and resolve container IPs..."
+            docker compose -f docker-compose.prod.yml restart gateway
 
             echo "[4/5] Pruning dangling Docker build caches..."
             docker image prune -f
