@@ -102,9 +102,15 @@ def check_endpoint(label: str, url: str, method: str = "GET", payload: dict = No
     data_bytes = json.dumps(payload).encode("utf-8") if payload else None
     headers = {"Content-Type": "application/json"} if payload else {}
 
+    import ssl
+    ctx = ssl.create_default_context()
+    if "localhost" in url or "127.0.0.1" in url:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
     req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
             elapsed_ms = round((time.time() - start_t) * 1000)
             status = resp.status
             passed = status in expected_statuses
