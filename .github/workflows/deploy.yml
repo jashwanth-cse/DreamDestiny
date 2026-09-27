@@ -1,0 +1,51 @@
+name: Continuous Deployment to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'docs/**'
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH to AWS EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            echo "=========================================================="
+            echo "[CI/CD] Starting automated deployment on EC2..."
+            echo "=========================================================="
+            cd /opt/dream-destiny
+
+            echo "[1/4] Pulling latest changes from GitHub main branch..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "[2/4] Rebuilding and updating production containers..."
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+
+            echo "[3/4] Pruning dangling Docker build caches..."
+            docker image prune -f
+
+            echo "[4/4] Verifying all endpoints through reverse proxy..."
+            python3 deploy/verify_deployment.py http://localhost
+
+            echo "=========================================================="
+            echo "[CI/CD] Deployment successfully verified and completed!"
+            echo "=========================================================="

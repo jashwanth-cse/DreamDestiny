@@ -1,0 +1,98 @@
+#!/bin/bash
+# ==============================================================================
+# DREAM DESTINY — EC2 CLOUD-INIT BOOTSTRAP SCRIPT
+# ==============================================================================
+# Runs automatically as root on initial instance boot.
+# Provisions swap, installs Docker, configures repository, and starts services.
+# ==============================================================================
+
+set -euo pipefail
+exec > >(tee -a /var/log/dream-destiny-init.log) 2>&1
+
+echo "===================================================================="
+echo "[$(date -u)] Starting Dream Destiny Autonomous Cloud-Init..."
+echo "===================================================================="
+
+# ── 1. Configure 3 GB Swapfile for Free Tier (1GB RAM protection) ─────────────
+if [ ! -f /swapfile ]; then
+    echo "[1/6] Allocating 3 GB swapfile on root EBS volume..."
+    fallocate -l 3G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=3072
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    sysctl vm.swappiness=20
+    echo 'vm.swappiness=20' >> /etc/sysctl.d/99-swappiness.conf
+    echo "[OK] Swap allocated successfully:"
+    free -h
+fi
+
+# ── 2. Update System Packages & Install Prerequisites ─────────────────────────
+echo "[2/6] Updating APT packages and installing dependencies..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    git \
+    ufw
+
+# ── 3. Install Docker Engine & Docker Compose Plugin ──────────────────────────
+echo "[3/6] Installing official Docker CE & Compose plugin..."
+install -m 0755 -d /etc/apt/keyrings
+if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+fi
+
+ARCH=$(dpkg --print-architecture)
+CODENAME=$(lsb_release -cs)
+echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${CODENAME} stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+systemctl enable docker
+systemctl start docker
+usermod -aG docker ubuntu || true
+
+# ── 4. Set up Application Directory ───────────────────────────────────────────
+echo "[4/6] Setting up project directory..."
+APP_DIR="/opt/dream-destiny"
+mkdir -p "${APP_DIR}"
+
+# Repository URL injected by deploy script
+REPO_URL="__REPO_URL__"
+REPO_BRANCH="__REPO_BRANCH__"
+
+if [ -n "${REPO_URL}" ] && [ "${REPO_URL}" != "NONE" ]; then
+    echo "Cloning repository from ${REPO_URL} (${REPO_BRANCH})..."
+    rm -rf /tmp/repo_clone
+    git clone --branch "${REPO_BRANCH}" "${REPO_URL}" /tmp/repo_clone
+    cp -r /tmp/repo_clone/* "${APP_DIR}/"
+    cp -r /tmp/repo_clone/.[!.]* "${APP_DIR}/" 2>/dev/null || true
+fi
+
+cd "${APP_DIR}"
+
+# ── 5. Inject Production Environment Configuration ────────────────────────────
+echo "[5/6] Writing production .env configuration..."
+cat << 'EOF' > "${APP_DIR}/.env"
+__ENV_CONTENT__
+EOF
+
+chown -R ubuntu:ubuntu "${APP_DIR}"
+chmod 600 "${APP_DIR}/.env"
+
+# ── 6. Build and Start the Unified Microservices Stack ────────────────────────
+echo "[6/6] Launching microservices stack with NGINX reverse proxy..."
+docker compose -f docker-compose.prod.yml down --remove-orphans || true
+docker compose -f docker-compose.prod.yml up -d --build
+
+echo "===================================================================="
+echo "[$(date -u)] Bootstrap complete! Stack is booting..."
+echo "Verify status with: docker compose -f docker-compose.prod.yml ps"
+echo "===================================================================="

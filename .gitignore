@@ -25,6 +25,26 @@ build/
 # Logs and databases
 *.log
 *.sqlite3
+*.db
+hotel_cache.db
+
+# Keys, certificates, and secrets
+*.pem
+*.key
+*.crt
+*.cert
+deploy/*.pem
+deploy/user_data.sh
+.env
+.env.*
+!.env.example
+planner-service/.env
+
+# Test prompt dumps
+raw_prompt_bundle.json
+ollama_*.json
+prompt_*.txt
+schema_itinerary.json
 
 # OS generated files
 .DS_Store
