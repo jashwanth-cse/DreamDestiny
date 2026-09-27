@@ -74,11 +74,10 @@ SERVICES = [
 
 
 def print_container_logs(container_name: str, lines: int = 30):
-    """If docker is available on the machine, print recent logs for the failed container."""
+    """If docker is available and reachable locally, print recent logs for the failed container."""
     if not shutil.which("docker"):
         return
 
-    print(f"\n{'!' * 20} RECENT CONTAINER LOGS: {container_name} {'!' * 20}")
     try:
         res = subprocess.run(
             ["docker", "logs", "--tail", str(lines), container_name],
@@ -86,14 +85,16 @@ def print_container_logs(container_name: str, lines: int = 30):
             text=True,
             timeout=10,
         )
-        output = (res.stdout + "\n" + res.stderr).strip()
-        if output:
-            print(output)
-        else:
-            print(f"(No log output recorded for {container_name})")
-    except Exception as e:
-        print(f"Could not retrieve docker logs for {container_name}: {e}")
-    print(f"{'!' * 70}\n")
+        if res.returncode == 0:
+            output = res.stdout.strip()
+            print(f"\n{'!' * 20} RECENT CONTAINER LOGS: {container_name} {'!' * 20}")
+            if output:
+                print(output)
+            else:
+                print(f"(No log output recorded for {container_name})")
+            print(f"{'!' * 70}\n")
+    except Exception:
+        pass
 
 
 def check_endpoint(label: str, url: str, method: str = "GET", payload: dict = None, expected_statuses: tuple = (200,)):
