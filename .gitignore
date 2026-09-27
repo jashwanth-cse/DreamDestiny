@@ -39,6 +39,10 @@ deploy/user_data.sh
 .env.*
 !.env.example
 planner-service/.env
+certbot/conf/*
+!certbot/conf/.gitkeep
+certbot/www/*
+!certbot/www/.gitkeep
 
 # Test prompt dumps
 raw_prompt_bundle.json
