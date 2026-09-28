@@ -27,6 +27,16 @@ class WhatsAppClient:
         self._client: Optional[httpx.AsyncClient] = None
 
     async def get_client(self) -> httpx.AsyncClient:
+        import asyncio
+        if self._client is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                if getattr(self._client, "_loop", None) is not None and self._client._loop != loop:
+                    await self._client.aclose()
+                    self._client = None
+            except Exception:
+                self._client = None
+
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(15.0, connect=5.0),
@@ -41,19 +51,20 @@ class WhatsAppClient:
     async def send_message_payload(self, payload: Dict[str, Any]) -> bool:
         """
         Sends an arbitrary message payload to the WhatsApp Cloud API.
-        If access token is missing (e.g. in test/dev environment), records the message to mock log.
+        If access token is missing or in test environment, logs and records the message.
         """
         recipient = payload.get("to", "unknown")
         msg_type = payload.get("type", "unknown")
 
-        if not self.access_token or not self.phone_number_id:
+        self._sent_messages_log.append(payload)
+
+        if settings.app_env == "test" or not self.access_token or not self.phone_number_id:
             logger.info(
                 "[MOCK WHATSAPP] Outgoing to %s (type=%s): %s",
                 recipient,
                 msg_type,
                 payload.get("text", {}).get("body") or payload.get("interactive", {}).get("body", {}).get("text", ""),
             )
-            self._sent_messages_log.append(payload)
             return True
 
         url = f"{self.base_url}/messages"
@@ -67,7 +78,6 @@ class WhatsAppClient:
             resp = await client.post(url, json=payload, headers=headers)
             if resp.status_code in (200, 201):
                 logger.info("Successfully sent WhatsApp message to %s [status=%d]", recipient, resp.status_code)
-                self._sent_messages_log.append(payload)
                 return True
             else:
                 logger.error("Meta WhatsApp API error: %d - %s", resp.status_code, resp.text)

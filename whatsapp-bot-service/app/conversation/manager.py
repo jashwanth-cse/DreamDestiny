@@ -69,8 +69,13 @@ class ConversationManager:
                 ),
             )
 
-            # 5. Message Understanding (Deterministic + LLM fallback)
-            slots = await message_parser.parse(event.text, event.payload_id)
+            # 5. Message Understanding (Deterministic + Context-Aware + LLM fallback)
+            slots = await message_parser.parse(
+                text=event.text,
+                payload_id=event.payload_id,
+                current_state=session.state,
+                current_draft=session.draft,
+            )
 
             # 6. Advance State Machine
             new_state, response_payload = StateMachine.transition(session, slots)
