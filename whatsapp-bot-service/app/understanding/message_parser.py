@@ -111,6 +111,27 @@ class MessageParser:
                 slots.travelers = 2
             elif payload_id == "btn_travelers_4":
                 slots.travelers = 4
+            elif payload_id == "btn_dates_weekend":
+                today = date.today()
+                days_ahead = (4 - today.weekday()) % 7
+                if days_ahead < 2:
+                    days_ahead += 7
+                slots.start_date = today + timedelta(days=days_ahead)
+                slots.duration_days = 3
+                slots.end_date = slots.start_date + timedelta(days=3)
+            elif payload_id == "btn_dates_next_weekend":
+                today = date.today()
+                days_ahead = (4 - today.weekday()) % 7 + 7
+                slots.start_date = today + timedelta(days=days_ahead)
+                slots.duration_days = 4
+                slots.end_date = slots.start_date + timedelta(days=4)
+            elif payload_id == "btn_dates_next_month":
+                today = date.today()
+                next_m = today.month + 1 if today.month < 12 else 1
+                next_y = today.year if today.month < 12 else today.year + 1
+                slots.start_date = date(next_y, next_m, 5)
+                slots.duration_days = 5
+                slots.end_date = slots.start_date + timedelta(days=5)
 
         # 4. Direct "from <Origin> to <Destination>" Pattern (Highest precedence)
         from_to_match = re.search(
@@ -384,19 +405,39 @@ class MessageParser:
             current_state=current_state,
             current_draft=current_draft,
         )
-        if slots.has_slots() or slots.confirmation_intent is not None or slots.reset_intent:
-            return slots
+        from app.understanding.city_validator import city_validator
 
+        target_slots = slots
         # If deterministic rules didn't catch slots on multi-word free text, invoke Gemini 2.5 Flash
-        if self._llm and len(text.strip().split()) >= 2:
+        if not target_slots.has_slots() and self._llm and len(text.strip().split()) >= 2:
             try:
                 llm_slots = await self._parse_with_llm(text, current_state)
                 if llm_slots.has_slots():
-                    return llm_slots
+                    target_slots = llm_slots
             except Exception as e:
                 logger.warning("LLM extraction failed: %s. Using deterministic slots.", e)
 
-        return slots
+        # Validate destination candidate
+        if target_slots.destination:
+            is_valid, norm_dest = await city_validator.validate_city(target_slots.destination)
+            if is_valid and norm_dest:
+                target_slots.destination = norm_dest
+            else:
+                target_slots.invalid_city = target_slots.destination
+                target_slots.is_origin_invalid = False
+                target_slots.destination = None
+
+        # Validate origin candidate
+        if target_slots.origin:
+            is_valid, norm_orig = await city_validator.validate_city(target_slots.origin)
+            if is_valid and norm_orig:
+                target_slots.origin = norm_orig
+            else:
+                target_slots.invalid_city = target_slots.origin
+                target_slots.is_origin_invalid = True
+                target_slots.origin = None
+
+        return target_slots
 
     async def _parse_with_llm(self, text: str, current_state: Optional[ConversationState] = None) -> ExtractedTripSlots:
         """Structured Gemini 2.5 Flash JSON extraction for complex travel phrases."""

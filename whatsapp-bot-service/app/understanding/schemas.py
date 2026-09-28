@@ -26,6 +26,8 @@ class ExtractedTripSlots(BaseModel):
     reset_intent: bool = False
     confirmation_intent: Optional[bool] = None  # True if user clicked Confirm / Yes
     modification_intent: Optional[str] = None   # e.g. "cheaper hotel", "change transport"
+    invalid_city: Optional[str] = None          # Set if candidate place was unrecognized
+    is_origin_invalid: bool = False             # True if invalid city was for origin
 
     def has_slots(self) -> bool:
         """Returns True if at least one meaningful slot or intent was identified."""

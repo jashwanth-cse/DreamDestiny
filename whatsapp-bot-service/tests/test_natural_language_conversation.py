@@ -92,3 +92,84 @@ def test_travelers_bare_digit():
     """When bot asks for travelers, '2' must be recognized."""
     slots = message_parser.parse_deterministic("2", current_state=ConversationState.COLLECT_TRAVELERS)
     assert slots.travelers == 2
+
+
+def test_transport_prompt_includes_bus():
+    """Verify Bus is an available button option for transport."""
+    from app.conversation import prompts
+    p = prompts.get_transport_prompt()
+    button_titles = [b[1] for b in p["buttons"]]
+    assert any("Bus" in t for t in button_titles)
+    assert any("Flight" in t for t in button_titles)
+    assert any("Train" in t for t in button_titles)
+
+
+def test_itinerary_formatting_maps_and_no_raw_dicts():
+    """Verify that formatted itinerary has Google Maps links and no raw dicts or empty bullets."""
+    from app.whatsapp.messages import format_itinerary_message
+
+    sample_itinerary = {
+        "summary": {
+            "destination": "Mumbai",
+            "origin": "Rajapalayam",
+            "days": 3,
+            "travelers": 2,
+            "pace": "moderate",
+            "budget_level": "medium",
+        },
+        "hotel": {
+            "hotel_name": "Taj Mahal Palace",
+            "price_per_night": 4500.0,
+            "price_total": 9000.0,
+            "reasoning": "Heritage sea view hotel",
+        },
+        "outbound_transport": {
+            "mode": "train",
+            "train_name": "Pandian Express",
+            "train_number": "12638",
+            "fare_per_person": 1250,
+        },
+        "days": [
+            {
+                "day": 1,
+                "date": "2026-10-15",
+                "theme": "South Mumbai Exploration",
+                "activities": [
+                    {
+                        "attraction_name": "Gateway of India",
+                        "start_time": "10:00",
+                        "duration_minutes": 60,
+                        "notes": "Historical colonial monument",
+                    }
+                ],
+            }
+        ],
+        "total_cost": 15000.0,
+    }
+
+    formatted = format_itinerary_message(sample_itinerary, "Rajapalayam", "Mumbai")
+
+    # Assert no raw python dict
+    assert "{'destination'" not in formatted
+    # Assert attraction name is present
+    assert "Gateway of India" in formatted
+    # Assert Google Maps link is generated
+    assert "https://maps.google.com/?q=" in formatted
+    # Assert hotel is rendered properly
+    assert "Taj Mahal Palace" in formatted
+    assert "₹4,500/night" in formatted
+    # Assert transport is rendered
+    assert "Pandian Express" in formatted
+
+
+@pytest.mark.asyncio
+async def test_city_validation_rejects_irrelevant_names():
+    """Verify that irrelevant phrases like 'Check If It Works' are rejected."""
+    from app.understanding.city_validator import city_validator
+    is_valid, name = await city_validator.validate_city("Check If It Works")
+    assert is_valid is False
+
+    is_valid_real, real_name = await city_validator.validate_city("Mumbai")
+    assert is_valid_real is True
+    assert real_name == "Mumbai"
+

@@ -79,7 +79,11 @@ class StateMachine:
         Executes a deterministic state machine transition based on the user's current session state
         and newly extracted slots. Never loops indefinitely on conversational affirmations.
         """
-        # 1. Check for Reset / Cancel
+        # 1. Check for Invalid City input
+        if slots.invalid_city:
+            return session.state, prompts.get_invalid_city_prompt(slots.invalid_city, is_origin=slots.is_origin_invalid)
+
+        # 2. Check for Reset / Cancel
         if slots.reset_intent or (slots.confirmation_intent is False and session.state == ConversationState.CONFIRM_TRIP):
             session.draft = TripDraft()
             session.state = ConversationState.START
