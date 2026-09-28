@@ -70,6 +70,11 @@ SERVICES = [
         "path": "/plan/health",
         "container": "dream-destiny-planner",
     },
+    {
+        "label": "WhatsApp Bot Service",
+        "path": "/whatsapp/health",
+        "container": "dream-destiny-whatsapp-bot",
+    },
 ]
 
 

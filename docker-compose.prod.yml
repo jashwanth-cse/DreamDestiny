@@ -48,6 +48,8 @@ services:
         condition: service_healthy
       bus-service:
         condition: service_healthy
+      whatsapp-bot-service:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -262,3 +264,56 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  # ── 10. Redis Cache & Distributed Lock ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: dream-destiny-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    networks:
+      - dream-destiny-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
+
+  # ── 11. WhatsApp Bot Conversational Service ─────────────────────────────────
+  whatsapp-bot-service:
+    build:
+      context: ./whatsapp-bot-service
+      dockerfile: Dockerfile
+    container_name: dream-destiny-whatsapp-bot
+    restart: always
+    environment:
+      - APP_ENV=production
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
+      - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-dream_destiny_verify_token}
+      - WHATSAPP_API_VERSION=${WHATSAPP_API_VERSION:-v20.0}
+      - REDIS_URL=redis://redis:6379/0
+      - PLANNER_GATEWAY_URL=http://planner-service:8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    networks:
+      - dream-destiny-prod-net
+    depends_on:
+      redis:
+        condition: service_healthy
+      planner-service:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 150M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
