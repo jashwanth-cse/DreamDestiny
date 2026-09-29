@@ -245,3 +245,57 @@ def test_visual_itinerary_formatting():
     assert "https://maps.google.com/?q=Hotel+Marine+Plaza%2C+Mumbai" in formatted
     assert "₹29,400" in formatted
     assert "━━━━━━━━━━━━━━━━━━━━" in formatted
+
+
+@pytest.mark.asyncio
+async def test_trip_service_generation_and_archiving(monkeypatch):
+    from app.services.trip_service import trip_service
+    from app.clients.planner_gateway import planner_gateway
+    from app.whatsapp.client import whatsapp_client
+    from datetime import date
+
+    # Mock planner gateway to return sample itinerary
+    async def mock_generate_itinerary(trip_req, corr_id):
+        return {
+            "summary": {"destination": trip_req.destination, "days": 3},
+            "days": [{"day": 1, "activities": [{"attraction_name": "Beach"}]}],
+        }
+    monkeypatch.setattr(planner_gateway, "generate_itinerary", mock_generate_itinerary)
+
+    # Mock whatsapp client send
+    sent_payloads = []
+    async def mock_send(payload):
+        sent_payloads.append(payload)
+        return {"messages": [{"id": "wamid.test"}]}
+    monkeypatch.setattr(whatsapp_client, "send_message_payload", mock_send)
+
+    wa_id = "919876543299"
+    session = UserSession(wa_id=wa_id, user_name="Traveler")
+    session.draft.destination = "Goa"
+    session.draft.origin = "Mumbai"
+    session.draft.start_date = date(2026, 10, 1)
+    session.draft.end_date = date(2026, 10, 4)
+    session.draft.duration_days = 3
+    session.draft.travelers = 2
+    session.draft.budget_level = BudgetLevel.medium
+    session.draft.transport_mode = TransportPref.flight
+    session.draft.hotel_category = HotelPref.mid_range
+    session.state = ConversationState.GENERATING
+    await redis_store.save_session(session)
+
+    # Execute trip generation
+    success = await trip_service.generate_trip_itinerary(session)
+    assert success is True
+
+    # Verify session transitioned to COMPLETED
+    updated_session = await redis_store.get_session(wa_id)
+    assert updated_session.state == ConversationState.COMPLETED
+    assert updated_session.current_trip_id is not None
+
+    # Verify archived trip in Redis
+    trips = await redis_store.get_user_trips(wa_id, limit=1)
+    assert len(trips) == 1
+    assert trips[0]["destination"] == "Goa"
+    assert trips[0]["days"] == 3
+    assert len(sent_payloads) == 1
+

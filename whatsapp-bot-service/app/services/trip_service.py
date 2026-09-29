@@ -70,13 +70,15 @@ class TripService:
             await redis_store.save_session(session)
 
             # Archive trip into Redis for fast My Trips / Menu access
+            trip_duration = session.draft.duration_days or max(1, (trip_request.end_date - trip_request.start_date).days)
+            budget_str = str(session.draft.budget_level.value if session.draft.budget_level else "medium")
             archived_trip = {
                 "trip_id": trip.trip_id,
                 "origin": trip_request.origin,
                 "destination": trip_request.destination,
-                "days": trip_request.duration_days,
+                "days": trip_duration,
                 "travelers": trip_request.travelers,
-                "budget_level": str(trip_request.budget_level.value if hasattr(trip_request.budget_level, "value") else trip_request.budget_level),
+                "budget_level": budget_str,
                 "created_at": trip.created_at,
                 "itinerary_data": itinerary_data,
             }
