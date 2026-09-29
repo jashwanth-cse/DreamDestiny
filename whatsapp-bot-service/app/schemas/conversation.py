@@ -25,6 +25,9 @@ class ConversationState(str, Enum):
     GENERATING = "GENERATING"
     COMPLETED = "COMPLETED"
     MODIFYING = "MODIFYING"
+    RESUME_CHOICE = "RESUME_CHOICE"
+    MAIN_MENU = "MAIN_MENU"
+    VIEWING_TRIPS = "VIEWING_TRIPS"
     ERROR = "ERROR"
 
 
@@ -37,6 +40,7 @@ class UserSession(BaseModel):
     wa_id: str
     user_name: str = "Traveler"
     state: ConversationState = ConversationState.START
+    paused_state: Optional[ConversationState] = None
     draft: TripDraft = Field(default_factory=TripDraft)
     current_trip_id: Optional[str] = None
     last_message_id: Optional[str] = None

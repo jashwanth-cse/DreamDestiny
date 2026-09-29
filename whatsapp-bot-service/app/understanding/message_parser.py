@@ -61,6 +61,40 @@ class MessageParser:
         clean_text = text.strip()
         lower = clean_text.lower()
 
+        # 0. Global Menu & Navigation Intents
+        if payload_id == "btn_menu" or lower in ("menu", "main menu", "help", "options"):
+            slots.menu_intent = True
+            return slots
+
+        if payload_id == "btn_past_trips" or lower in ("past trips", "my trips", "saved trips", "view past trips", "previous trips"):
+            slots.past_trips_intent = True
+            return slots
+
+        if payload_id in ("btn_resume_trip", "btn_resume") or lower in (
+            "continue", "resume", "continue trip", "continue last trip", "continue last conversation"
+        ):
+            slots.resume_intent = True
+            return slots
+
+        if payload_id in ("btn_cancel", "btn_start_over", "btn_plan_new") or lower in (
+            "reset", "restart", "start over", "cancel", "new trip", "plan new trip", "clear", "abort"
+        ):
+            slots.reset_intent = True
+            slots.confirmation_intent = False
+            return slots
+
+        # Trip selection by index/button
+        if payload_id and payload_id.startswith("btn_trip_"):
+            try:
+                slots.selected_trip_number = int(payload_id.replace("btn_trip_", ""))
+                return slots
+            except ValueError:
+                pass
+        trip_num_match = re.match(r"^(?:trip\s*|#\s*)?(\d+)$", lower)
+        if trip_num_match and current_state == ConversationState.VIEWING_TRIPS:
+            slots.selected_trip_number = int(trip_num_match.group(1))
+            return slots
+
         # 1. Confirmation / Affirmation Intent
         if (
             payload_id == "btn_confirm"

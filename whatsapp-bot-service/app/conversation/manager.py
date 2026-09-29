@@ -1,9 +1,10 @@
 """
 Conversation Manager — orchestrates message lifecycle, session recovery,
-concurrency locks, idempotency deduplication, and response dispatching.
+concurrency locks, idempotency deduplication, guardrail shield, and response dispatching.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.schemas.webhook import NormalizedEvent, MessageType
@@ -11,12 +12,16 @@ from app.schemas.conversation import UserSession, ConversationState, MessageReco
 from app.storage.redis_store import redis_store
 from app.storage.firestore_store import firestore_store
 from app.understanding.message_parser import message_parser
+from app.understanding.guardrail import guardrail_shield
 from app.conversation.state_machine import StateMachine
+from app.conversation import prompts
 from app.services.trip_service import trip_service
 from app.whatsapp.client import whatsapp_client
-from app.whatsapp.messages import build_text_message, build_button_message
+from app.whatsapp.messages import build_text_message, build_button_message, format_itinerary_message
 
 logger = logging.getLogger(__name__)
+
+GREETINGS = {"hi", "hello", "hey", "hola", "namaste", "vanakkam", "good morning", "good evening"}
 
 
 class ConversationManager:
@@ -35,28 +40,46 @@ class ConversationManager:
 
         await redis_store.mark_message_processed(message_id)
 
-        # 2. Acquire Distributed User Lock
+        # 2. Strict Domain Guardrail Shield Check
+        # If user queries off-topic matters (coding, math, politics, trivia), strictly do not respond
+        is_in_scope = await guardrail_shield.is_in_scope(event.text, event.payload_id)
+        if not is_in_scope:
+            logger.warning("[GUARDRAIL] Dropped off-topic input for user %s: '%s'", wa_id, event.text)
+            return
+
+        # 3. Acquire Distributed User Lock
         async with redis_store.user_lock(wa_id) as acquired:
             if not acquired:
                 logger.warning("Could not acquire lock for user %s — another request in flight", wa_id)
                 return
 
-            # 3. Load or Recover Session (Redis hit -> continue; Redis miss -> Firestore recovery)
+            # 4. Load or Recover Session (Redis hit -> continue; Redis miss -> Firestore recovery)
             session = await redis_store.get_session(wa_id)
+            is_new_session = False
             if not session:
                 logger.info("Redis cache miss for user %s. Initiating recovery from Firestore.", wa_id)
                 session = UserSession(wa_id=wa_id, user_name=event.user_name)
-                # Check if returning user in Firestore
+                is_new_session = True
                 user_rec = await firestore_store.get_user(wa_id)
                 if user_rec:
                     session.user_name = user_rec.display_name
                 else:
-                    # First time user
                     await firestore_store.save_user(UserRecord(wa_id=wa_id, display_name=event.user_name))
+
+            # Check for Inactivity Pause (e.g. > 2 hours) or returning to Completed Trip
+            is_inactive_return = False
+            if not is_new_session and session.last_activity:
+                try:
+                    last_dt = datetime.fromisoformat(session.last_activity.replace("Z", "+00:00"))
+                    seconds_idle = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                    if seconds_idle > 7200:  # 2 hours
+                        is_inactive_return = True
+                except Exception:
+                    pass
 
             session.touch(message_id=message_id)
 
-            # 4. Audit Log Inbound Message to Firestore
+            # 5. Audit Log Inbound Message to Firestore
             await firestore_store.save_message(
                 wa_id=wa_id,
                 conversation_id=session.conversation_id,
@@ -66,10 +89,11 @@ class ConversationManager:
                     message_type=event.message_type.value,
                     text=event.text,
                     payload={"payload_id": event.payload_id},
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                 ),
             )
 
-            # 5. Message Understanding (Deterministic + Context-Aware + LLM fallback)
+            # 6. Message Understanding (Deterministic + Context-Aware + LLM fallback)
             slots = await message_parser.parse(
                 text=event.text,
                 payload_id=event.payload_id,
@@ -77,13 +101,63 @@ class ConversationManager:
                 current_draft=session.draft,
             )
 
-            # 6. Advance State Machine
-            new_state, response_payload = StateMachine.transition(session, slots)
+            response_payload = None
+            new_state = session.state
 
-            # 7. Persist Updated Session to Redis
+            clean_text = event.text.strip().lower() if event.text else ""
+
+            # 7. Inactivity / Resumption Interceptor
+            # If user returns after long inactivity OR previous itinerary was already finalized,
+            # and sends a casual greeting without specific trip slots:
+            if (
+                (is_inactive_return or session.state == ConversationState.COMPLETED)
+                and clean_text in GREETINGS
+                and not slots.destination
+                and not slots.origin
+                and not slots.modification_intent
+                and not slots.menu_intent
+                and not slots.past_trips_intent
+            ):
+                session.paused_state = session.state
+                session.state = ConversationState.RESUME_CHOICE
+                is_comp = (session.paused_state == ConversationState.COMPLETED)
+                response_payload = prompts.get_resumption_prompt(
+                    session.user_name, session.draft, is_completed=is_comp
+                )
+                new_state = ConversationState.RESUME_CHOICE
+
+            # 8. Saved Past Trips Handling
+            elif slots.past_trips_intent:
+                session.state = ConversationState.VIEWING_TRIPS
+                past_trips = await redis_store.get_user_trips(wa_id, limit=5)
+                response_payload = prompts.get_past_trips_prompt(past_trips)
+                new_state = ConversationState.VIEWING_TRIPS
+
+            elif session.state == ConversationState.VIEWING_TRIPS and slots.selected_trip_number:
+                idx = slots.selected_trip_number - 1
+                trip_data = await redis_store.get_user_trip_by_index(wa_id, idx)
+                if trip_data and "itinerary_data" in trip_data:
+                    session.state = ConversationState.COMPLETED
+                    itinerary_text = format_itinerary_message(
+                        trip_data["itinerary_data"],
+                        origin=trip_data.get("origin", "Origin"),
+                        destination=trip_data.get("destination", "Destination"),
+                    )
+                    response_payload = {"text": itinerary_text}
+                    new_state = ConversationState.COMPLETED
+                else:
+                    response_payload = {
+                        "text": "Could not find that saved trip. Reply _'Past trips'_ to see your saved itineraries."
+                    }
+
+            # 9. Standard State Machine Advance
+            if response_payload is None:
+                new_state, response_payload = StateMachine.transition(session, slots)
+
+            # 10. Persist Updated Session to Redis
             await redis_store.save_session(session)
 
-            # 8. Send Response to User via WhatsApp Client
+            # 11. Send Response to User via WhatsApp Client
             body_text = response_payload.get("text", "")
             buttons = response_payload.get("buttons")
 
@@ -107,10 +181,11 @@ class ConversationManager:
                     direction="outbound",
                     message_type="interactive" if buttons else "text",
                     text=body_text,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                 ),
             )
 
-            # 9. If state transitioned to GENERATING, trigger background trip planning
+            # 12. If state transitioned to GENERATING, trigger background trip planning
             if new_state == ConversationState.GENERATING:
                 logger.info("Triggering trip itinerary generation for user %s", wa_id)
                 await trip_service.generate_trip_itinerary(session)

@@ -3,7 +3,7 @@ Message builders for Meta WhatsApp Cloud API payloads and itinerary formatting.
 Follows Section 11 of the specification:
 - Reply buttons for small fixed choices (<=3)
 - List messages for larger choice sets (<=10)
-- Clean, readable WhatsApp itinerary formatting with markdown and emojis
+- Clean, highly readable WhatsApp itinerary formatting with markdown and emojis
 - Direct clickable Google Maps navigation links for attractions and accommodation
 """
 
@@ -41,8 +41,8 @@ def build_button_message(
         btn_objs.append({
             "type": "reply",
             "reply": {
-                "id": btn_id[:256],
-                "title": title[:20],
+                "id": str(btn_id)[:256],
+                "title": str(title)[:20],
             },
         })
 
@@ -98,69 +98,73 @@ def build_list_message(
 
 def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination: str) -> str:
     """
-    Formats the JSON Itinerary produced by planner-service into a readable,
+    Formats the JSON Itinerary produced by planner-service into a clean,
     visually appealing, executive WhatsApp markdown brochure with clickable Google Maps links.
     Guarantees ZERO raw dictionaries or JSON are emitted into user chat.
     """
     lines = []
-    
+    orig_title = origin.strip().title()
+    dest_title = destination.strip().title()
+
     # 1. Header Banner
-    lines.append(f"🌴 *{origin.upper()} TO {destination.upper()} ITINERARY* 🌴")
-    
+    lines.append(f"🌴 *{orig_title.upper()} ➔ {dest_title.upper()} EXPEDITION* 🌴")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+
     # 2. Summary details in clean natural language
     summary = itinerary.get("summary")
     if isinstance(summary, dict):
-        dest_name = summary.get("destination", destination).title()
-        orig_name = summary.get("origin", origin).title()
         days = summary.get("days", "")
         travelers = summary.get("travelers", "")
         budget = str(summary.get("budget_level", "")).title()
         pace = str(summary.get("pace", "Moderate")).title()
-        
+
         info_parts = []
         if days:
-            info_parts.append(f"⏱ *{days} Days*")
+            info_parts.append(f"📅 *{days} Days*")
         if travelers:
             info_parts.append(f"👥 *{travelers} Travelers*")
         if budget:
             info_parts.append(f"💰 *{budget} Budget*")
         if pace:
-            info_parts.append(f"🚶 *{pace} Pace*")
-        
-        lines.append(f"📍 *Route:* {orig_name} ➔ {dest_name}")
+            info_parts.append(f"⚡ *{pace} Pace*")
+
+        lines.append(f"📍 *Route:* {orig_title} ➔ {dest_title}")
         if info_parts:
-            lines.append(" | ".join(info_parts))
+            lines.append(" • ".join(info_parts))
     else:
-        lines.append(f"📍 *Route:* {origin.title()} ➔ {destination.title()}")
+        lines.append(f"📍 *Route:* {orig_title} ➔ {dest_title}")
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
     lines.append("")
 
     # 3. Transport Recommendation (Outbound & Return)
     outbound = itinerary.get("outbound_transport")
     if outbound and isinstance(outbound, dict):
-        lines.append("🚆 *TRANSPORT RECOMMENDATION:*")
         mode = outbound.get("mode", "Transport").title()
+        icon = "✈️" if "Flight" in mode else ("🚆" if "Train" in mode else "🚌")
+        lines.append(f"{icon} *TRANSIT & COMMUTE:*")
+        
         t_name = outbound.get("train_name") or outbound.get("operator_name") or outbound.get("airline") or ""
         t_num = outbound.get("train_number") or outbound.get("bus_type") or outbound.get("flight_id") or ""
-        dep_station = outbound.get("departure_station") or origin
-        arr_station = outbound.get("arrival_station") or destination
+        dep_station = outbound.get("departure_station") or orig_title
+        arr_station = outbound.get("arrival_station") or dest_title
         dep_time = outbound.get("departure_time") or ""
         arr_time = outbound.get("arrival_time") or ""
         fare = outbound.get("fare_per_person")
-        
+
         details = []
         if t_name:
             details.append(f"*{t_name}*" + (f" ({t_num})" if t_num else ""))
         if dep_time or arr_time:
             time_str = f"{dep_time} ➔ {arr_time}" if (dep_time and arr_time) else (dep_time or arr_time)
-            details.append(f"🕒 {time_str}")
+            details.append(f"⏰ {time_str}")
         if fare:
             details.append(f"₹{fare:,}/person")
-            
+
         lines.append(f"• *Outbound ({mode}):* {', '.join(details) if details else 'Direct route'}")
-        if dep_station != origin or arr_station != destination:
+        if dep_station != orig_title or arr_station != dest_title:
             lines.append(f"  _{dep_station} ➔ {arr_station}_")
         if outbound.get("instruction"):
-            lines.append(f"  ℹ️ {outbound['instruction']}")
+            lines.append(f"  💡 {outbound['instruction']}")
         lines.append("")
 
     # 4. Accommodation
@@ -170,17 +174,17 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
         h_price = hotel.get("price_per_night")
         h_total = hotel.get("price_total")
         h_reason = hotel.get("reasoning") or ""
-        
+
         query = urllib.parse.quote_plus(f"{h_name}, {destination}")
         hotel_map_link = f"https://maps.google.com/?q={query}"
-        
+
         lines.append("🏨 *HOTEL & STAY:*")
         lines.append(f"• *{h_name}*")
         if h_price:
             price_str = f"~₹{int(h_price):,}/night"
             if h_total:
                 price_str += f" (Total: ₹{int(h_total):,})"
-            lines.append(f"  💵 Rate: {price_str}")
+            lines.append(f"  💰 Rate: {price_str}")
         lines.append(f"  📍 Map: {hotel_map_link}")
         if h_reason:
             lines.append(f"  _{h_reason}_")
@@ -196,43 +200,39 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
             day_num = day.get("day", 1)
             date_str = day.get("date", "")
             theme = day.get("theme", "")
-            
-            day_header = f"*Day {day_num}*"
+
+            day_header = f"🗓️ *Day {day_num}*"
             if date_str:
                 day_header += f" _({date_str})_"
             if theme:
                 day_header += f" — *{theme}*"
             lines.append(f"\n{day_header}")
-            
+
             acts = day.get("activities") or day.get("schedule") or []
             if not acts:
-                lines.append("  • _Free time for exploration, shopping, and local cuisine._")
+                lines.append("  • _Free time for leisurely exploration, local dining, and shopping._")
             for act in acts:
                 if isinstance(act, dict):
                     name = act.get("attraction_name") or act.get("name") or act.get("title") or act.get("description") or "Sightseeing Spot"
-                    start_time = act.get("start_time") or act.get("time") or act.get("slot")
+                    start_time = act.get("start_time") or act.get("time") or act.get("slot") or ""
                     dur_min = act.get("duration_minutes")
                     notes = act.get("notes") or ""
                     cost = act.get("estimated_cost") or act.get("cost") or act.get("price")
-                    
-                    time_dur = []
-                    if start_time:
-                        time_dur.append(start_time)
+
+                    time_prefix = f"[{start_time}] " if start_time else ""
                     if dur_min:
-                        time_dur.append(f"{dur_min}m")
-                    
-                    time_prefix = f"[{' • '.join(time_dur)}] " if time_dur else ""
-                    
+                        time_prefix = f"[{start_time} • {dur_min}m] " if start_time else f"[{dur_min}m] "
+
                     # Clickable Google Maps link
                     query = urllib.parse.quote_plus(f"{name}, {destination}")
                     place_map_url = f"https://maps.google.com/?q={query}"
-                    
+
                     lines.append(f"  • {time_prefix}*{name}*")
-                    lines.append(f"    📍 Map: {place_map_url}")
+                    lines.append(f"    📍 Maps: {place_map_url}")
                     if notes:
                         lines.append(f"    _{notes}_")
                     if cost and float(cost) > 0:
-                        lines.append(f"    💵 Entry: ₹{int(float(cost)):,}")
+                        lines.append(f"    🎟️ Entry: ₹{int(float(cost)):,}")
                 elif isinstance(act, str) and act.strip():
                     lines.append(f"  • {act.strip()}")
             lines.append("")
@@ -241,10 +241,11 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
     cost_info = itinerary.get("cost_breakdown") or {}
     total_cost = itinerary.get("total_cost") or cost_info.get("total_cost") or itinerary.get("total_estimated_cost")
     if total_cost:
-        lines.append(f"💰 *TOTAL ESTIMATED BUDGET:* ~₹{int(float(total_cost)):,}")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append(f"💰 *ESTIMATED TOTAL BUDGET:* ~₹{int(float(total_cost)):,}")
         breakdown_items = []
         if cost_info.get("transport_cost"):
-            breakdown_items.append(f"Transport: ₹{int(float(cost_info['transport_cost'])):,}")
+            breakdown_items.append(f"Transit: ₹{int(float(cost_info['transport_cost'])):,}")
         if cost_info.get("hotel_cost"):
             breakdown_items.append(f"Stay: ₹{int(float(cost_info['hotel_cost'])):,}")
         if cost_info.get("activities_estimated_cost"):
@@ -259,6 +260,6 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
     lines.append("• _Make the hotel cheaper_")
     lines.append("• _Switch transport to flight / train / bus_")
     lines.append("• _Add more relaxing activities_")
-    lines.append("• _New trip_ to plan another journey")
-    
+    lines.append("• Or reply _'Menu'_ for options or _'New trip'_ to plan another journey")
+
     return "\n".join(lines)

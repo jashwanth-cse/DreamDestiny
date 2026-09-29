@@ -6,6 +6,7 @@ Follows Section 4 and Section 36 of the specification:
 - Bypasses questions for slots already answered.
 - Handles natural affirmations ("yes", "take it", "ok") without looping.
 - Automatically calculates missing dates/durations using sensible smart defaults.
+- Manages Resumption Choices, Centralized Main Menu, and Saved Trips.
 """
 
 import logging
@@ -83,20 +84,61 @@ class StateMachine:
         if slots.invalid_city:
             return session.state, prompts.get_invalid_city_prompt(slots.invalid_city, is_origin=slots.is_origin_invalid)
 
-        # 2. Check for Reset / Cancel
+        # 2. Check for Global Main Menu Request
+        if slots.menu_intent:
+            if session.state not in (ConversationState.MAIN_MENU, ConversationState.RESUME_CHOICE):
+                session.paused_state = session.state
+            session.state = ConversationState.MAIN_MENU
+            has_plan = bool(session.draft.destination or session.current_trip_id)
+            return ConversationState.MAIN_MENU, prompts.get_main_menu_prompt(has_plan, session.draft.destination)
+
+        # 3. Check for Reset / Cancel / Plan New Trip
         if slots.reset_intent or (slots.confirmation_intent is False and session.state == ConversationState.CONFIRM_TRIP):
             session.draft = TripDraft()
+            session.current_trip_id = None
+            session.paused_state = None
             session.state = ConversationState.START
             return ConversationState.START, prompts.get_welcome_message(session.user_name)
 
-        # 2. Apply any extracted slots to draft
+        # 4. Check for Resumption / Continue Intent
+        if slots.resume_intent or (session.state == ConversationState.RESUME_CHOICE and slots.confirmation_intent):
+            target_state = session.paused_state
+            if target_state and target_state not in (ConversationState.RESUME_CHOICE, ConversationState.MAIN_MENU):
+                session.state = target_state
+                session.paused_state = None
+                if target_state == ConversationState.COMPLETED:
+                    dest = session.draft.destination or "your trip"
+                    return ConversationState.COMPLETED, {
+                        "text": f"🌴 Resuming your plan to *{dest}*! What modifications would you like? (e.g. _'Make hotel cheaper'_ or _'Switch to flight'_)"
+                    }
+                return target_state, cls._get_prompt_for_state(target_state, session.draft, session.user_name)
+            elif session.draft.destination:
+                next_state = cls.get_next_missing_slot_state(session.draft)
+                session.state = next_state
+                return next_state, cls._get_prompt_for_state(next_state, session.draft, session.user_name)
+            else:
+                session.state = ConversationState.COLLECT_DESTINATION
+                return ConversationState.COLLECT_DESTINATION, prompts.get_destination_prompt()
+
+        # 5. If currently in RESUME_CHOICE and user typed new destination
+        if session.state == ConversationState.RESUME_CHOICE:
+            if slots.destination or slots.origin:
+                session.draft = TripDraft()
+                session.paused_state = None
+                cls.apply_slots(session.draft, slots)
+                next_state = cls.get_next_missing_slot_state(session.draft)
+                session.state = next_state
+                return next_state, cls._get_prompt_for_state(next_state, session.draft, session.user_name)
+            is_comp = (session.paused_state == ConversationState.COMPLETED)
+            return ConversationState.RESUME_CHOICE, prompts.get_resumption_prompt(session.user_name, session.draft, is_completed=is_comp)
+
+        # 6. Apply extracted slots to draft
         cls.apply_slots(session.draft, slots)
 
         current = session.state
 
-        # 3. Contextual smart handling for affirmative / single-step replies per state
+        # 7. Contextual smart handling for affirmative / single-step replies per state
         if current == ConversationState.COLLECT_DATES:
-            # If user said "Yes" / "Yes take it" or provided duration without exact date
             if slots.confirmation_intent or (session.draft.duration_days and not session.draft.start_date):
                 today = date.today()
                 dur = session.draft.duration_days or 3
@@ -127,7 +169,7 @@ class StateMachine:
             if slots.confirmation_intent and not session.draft.hotel_category:
                 session.draft.hotel_category = HotelPref.mid_range
 
-        # 4. State transitions
+        # 8. State transitions
         if current in (
             ConversationState.START,
             ConversationState.COLLECT_DESTINATION,
@@ -137,6 +179,7 @@ class StateMachine:
             ConversationState.COLLECT_BUDGET,
             ConversationState.COLLECT_TRANSPORT,
             ConversationState.COLLECT_HOTEL,
+            ConversationState.MAIN_MENU,
         ):
             next_state = cls.get_next_missing_slot_state(session.draft)
             session.state = next_state
@@ -153,9 +196,9 @@ class StateMachine:
             if slots.modification_intent:
                 session.state = ConversationState.MODIFYING
                 return ConversationState.MODIFYING, {
-                    "text": f"Got it! Modifying your itinerary with: *{slots.modification_intent}* 🔄\nPlease hold on..."
+                    "text": f"Got it! Modifying your itinerary with: *{slots.modification_intent}* 🌴\nPlease hold on..."
                 }
-            # If user types something new after completion, check if it's a new trip request
+            # If user types something new after completion, start fresh journey
             if slots.destination or slots.origin:
                 session.draft = TripDraft()
                 cls.apply_slots(session.draft, slots)
@@ -164,7 +207,16 @@ class StateMachine:
                 return next_state, cls._get_prompt_for_state(next_state, session.draft, session.user_name)
 
             return ConversationState.COMPLETED, {
-                "text": "Your itinerary is ready above! You can ask for modifications (e.g. _'Make the hotel cheaper'_ or _'Switch to flight'_) or reply _'New trip'_ to plan another journey."
+                "text": (
+                    "Your itinerary is ready above! 🌴\n\n"
+                    "Would you like to modify it (e.g. _'Make hotel cheaper'_ or _'Switch to flight'_), "
+                    "view your saved trips, or plan a new journey?"
+                ),
+                "buttons": [
+                    ("btn_plan_new", "✈️ Plan New Trip"),
+                    ("btn_past_trips", "📜 My Trips"),
+                    ("btn_menu", "📋 Main Menu"),
+                ],
             }
 
         elif current == ConversationState.MODIFYING:
@@ -197,4 +249,8 @@ class StateMachine:
             return prompts.get_confirmation_prompt(draft)
         elif state == ConversationState.GENERATING:
             return prompts.get_generating_prompt()
+        elif state == ConversationState.MAIN_MENU:
+            return prompts.get_main_menu_prompt(bool(draft.destination), draft.destination)
+        elif state == ConversationState.RESUME_CHOICE:
+            return prompts.get_resumption_prompt(user_name, draft)
         return prompts.get_welcome_message(user_name)

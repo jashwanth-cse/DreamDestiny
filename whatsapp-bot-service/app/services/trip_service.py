@@ -64,10 +64,23 @@ class TripService:
             )
             await firestore_store.save_itinerary_version(wa_id, trip.trip_id, version)
 
-            # 3. Update active session
+            # 3. Update active session and archive in Redis
             session.current_trip_id = trip.trip_id
             session.state = ConversationState.COMPLETED
             await redis_store.save_session(session)
+
+            # Archive trip into Redis for fast My Trips / Menu access
+            archived_trip = {
+                "trip_id": trip.trip_id,
+                "origin": trip_request.origin,
+                "destination": trip_request.destination,
+                "days": trip_request.duration_days,
+                "travelers": trip_request.travelers,
+                "budget_level": str(trip_request.budget_level.value if hasattr(trip_request.budget_level, "value") else trip_request.budget_level),
+                "created_at": trip.created_at,
+                "itinerary_data": itinerary_data,
+            }
+            await redis_store.save_user_trip(wa_id, archived_trip)
 
             # 4. Format and Send Itinerary to WhatsApp
             formatted_text = format_itinerary_message(

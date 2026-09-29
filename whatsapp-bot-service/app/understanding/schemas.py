@@ -26,6 +26,10 @@ class ExtractedTripSlots(BaseModel):
     reset_intent: bool = False
     confirmation_intent: Optional[bool] = None  # True if user clicked Confirm / Yes
     modification_intent: Optional[str] = None   # e.g. "cheaper hotel", "change transport"
+    menu_intent: bool = False                   # True if user requested Menu
+    past_trips_intent: bool = False             # True if user requested Past / Saved Trips
+    resume_intent: bool = False                 # True if user chose to continue / resume
+    selected_trip_number: Optional[int] = None  # 1-based index if user replied "Trip 1"
     invalid_city: Optional[str] = None          # Set if candidate place was unrecognized
     is_origin_invalid: bool = False             # True if invalid city was for origin
 
@@ -45,4 +49,8 @@ class ExtractedTripSlots(BaseModel):
             or self.reset_intent
             or self.confirmation_intent is not None
             or self.modification_intent
+            or self.menu_intent
+            or self.past_trips_intent
+            or self.resume_intent
+            or self.selected_trip_number is not None
         )

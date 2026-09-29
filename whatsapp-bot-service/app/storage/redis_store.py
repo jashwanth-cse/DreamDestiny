@@ -26,6 +26,7 @@ class RedisStore:
         self._client: Optional[redis.Redis] = None
         self._memory_cache: dict[str, str] = {}  # In-memory fallback
         self._locks: set[str] = set()
+        self._user_trips: dict[str, list[dict]] = {}  # In-memory trips archive
 
     async def connect(self):
         if redis is not None and self._url:
@@ -156,6 +157,45 @@ class RedisStore:
                 self._memory_cache[key] = "processed"
         except Exception as e:
             logger.error("Error recording idempotency for %s: %s", message_id, e)
+
+    def _user_trips_key(self, wa_id: str) -> str:
+        return f"travel:trips:{wa_id}"
+
+    async def save_user_trip(self, wa_id: str, trip_data: dict, max_trips: int = 10):
+        """Persist a completed trip itinerary into user's trip archive."""
+        key = self._user_trips_key(wa_id)
+        payload = json.dumps(trip_data)
+        try:
+            if self._client:
+                await self._client.lpush(key, payload)
+                await self._client.ltrim(key, 0, max_trips - 1)
+            else:
+                if wa_id not in self._user_trips:
+                    self._user_trips[wa_id] = []
+                self._user_trips[wa_id].insert(0, trip_data)
+                self._user_trips[wa_id] = self._user_trips[wa_id][:max_trips]
+        except Exception as e:
+            logger.error("Error archiving trip for %s in Redis: %s", wa_id, e)
+
+    async def get_user_trips(self, wa_id: str, limit: int = 5) -> list[dict]:
+        """Retrieve recent past itineraries for a user."""
+        key = self._user_trips_key(wa_id)
+        try:
+            if self._client:
+                items = await self._client.lrange(key, 0, limit - 1)
+                return [json.loads(item) for item in items if item]
+            else:
+                return self._user_trips.get(wa_id, [])[:limit]
+        except Exception as e:
+            logger.error("Error retrieving past trips for %s from Redis: %s", wa_id, e)
+            return []
+
+    async def get_user_trip_by_index(self, wa_id: str, index: int = 0) -> Optional[dict]:
+        """Fetch a specific archived trip by 0-based index."""
+        trips = await self.get_user_trips(wa_id, limit=index + 1)
+        if 0 <= index < len(trips):
+            return trips[index]
+        return None
 
 
 redis_store = RedisStore()
