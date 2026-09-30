@@ -420,9 +420,9 @@ def _filter_flights(
 
     result = []
     dep_city = resolution.origin_city if resolution else ""
-    dep_dist = resolution.origin_airport_distance_km if resolution else 0.0
+    dep_dist = (resolution.origin_airport_distance_km if (resolution and resolution.origin_airport_distance_km is not None) else 0.0)
     arr_city = resolution.destination_city if resolution else ""
-    arr_dist = resolution.destination_airport_distance_km if resolution else 0.0
+    arr_dist = (resolution.destination_airport_distance_km if (resolution and resolution.destination_airport_distance_km is not None) else 0.0)
 
     for f in sorted_flights[:top_n]:
         dep_name = f.departure_airport_name or (resolution.origin_airport_name if resolution else "") or f.departure_airport_code
@@ -431,7 +431,7 @@ def _filter_flights(
         dep_station = f"{dep_name} ({f.departure_airport_code})"
         arr_station = f"{arr_name} ({f.arrival_airport_code})"
 
-        is_direct = (dep_dist <= 5.0)
+        is_direct = bool(dep_dist is None or dep_dist <= 5.0)
 
         result.append({
             "flight_id":                      f.flight_id,

@@ -97,6 +97,40 @@ def test_filter_flights():
     assert filtered[1]["flight_id"] == "FL-3"
 
 
+def test_filter_flights_with_none_airport_distance():
+    from app.schemas.context import FlightResolutionContext
+
+    # City with its own direct airport has origin_airport_distance_km = None
+    resolution = FlightResolutionContext(
+        origin_city="Mumbai",
+        origin_iata="BOM",
+        origin_airport_name="Chhatrapati Shivaji Maharaj International Airport",
+        origin_airport_distance_km=None,  # City has own airport
+        destination_city="Goa",
+        destination_iata="GOI",
+        destination_airport_name="Dabolim Airport",
+        destination_airport_distance_km=None,
+    )
+
+    flights = [
+        FlightContext(
+            flight_id="FL-BOM-GOI",
+            airline="IndiGo",
+            flight_number="6E 501",
+            departure_airport_code="BOM",
+            arrival_airport_code="GOI",
+            stops=0,
+            price=3200.0,
+            is_best_flight=True,
+        )
+    ]
+
+    filtered = _filter_flights(flights, resolution=resolution, top_n=1)
+    assert len(filtered) == 1
+    assert filtered[0]["is_direct"] is True
+    assert filtered[0]["departure_airport_distance_km"] == 0.0
+
+
 def test_itinerary_validator_flight_grounding_and_costs():
     trip = _create_mock_trip_request()
 
