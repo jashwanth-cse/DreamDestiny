@@ -52,17 +52,34 @@ class WhatsAppClient:
         """
         Sends an arbitrary message payload to the WhatsApp Cloud API.
         If access token is missing or in test environment, logs and records the message.
+        Automatically chunks text messages > 4096 characters.
         """
         recipient = payload.get("to", "unknown")
         msg_type = payload.get("type", "unknown")
 
         self._sent_messages_log.append(payload)
 
+        # Handle message chunking for long text messages (>4096 chars)
+        if msg_type == "text" and "text" in payload and "body" in payload["text"]:
+            body = payload["text"]["body"]
+            if len(body) > 4000:
+                logger.info("Message exceeds WhatsApp length limit. Chunking...")
+                success = True
+                chunks = [body[i:i+4000] for i in range(0, len(body), 4000)]
+                for i, chunk in enumerate(chunks):
+                    chunk_payload = {**payload, "text": {"body": chunk, "preview_url": False}}
+                    if not await self._send_single_payload(chunk_payload, recipient):
+                        success = False
+                return success
+
+        return await self._send_single_payload(payload, recipient)
+
+    async def _send_single_payload(self, payload: Dict[str, Any], recipient: str) -> bool:
         if settings.app_env == "test" or not self.access_token or not self.phone_number_id:
             logger.info(
                 "[MOCK WHATSAPP] Outgoing to %s (type=%s): %s",
                 recipient,
-                msg_type,
+                payload.get("type", "unknown"),
                 payload.get("text", {}).get("body") or payload.get("interactive", {}).get("body", {}).get("text", ""),
             )
             return True
