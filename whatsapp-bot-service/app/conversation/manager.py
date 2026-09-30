@@ -152,7 +152,41 @@ class ConversationManager:
 
             # 9. Standard State Machine Advance
             if response_payload is None:
+                old_state = session.state
                 new_state, response_payload = StateMachine.transition(session, slots)
+
+                # Waitlist/RAC Intercept
+                if (
+                    old_state == ConversationState.COLLECT_TRAIN_CLASS
+                    and slots.train_class
+                    and session.draft.is_complete_for_planning()
+                    and new_state != ConversationState.CONFIRM_CITY_TYPO
+                ):
+                    # Pause transition, query planner-service fast check
+                    logger.info("Checking transport availability for user %s", wa_id)
+                    from app.services.trip_service import trip_service
+                    
+                    status_dict = await trip_service.check_transport_availability(session.draft, session.correlation_id)
+                    status = status_dict.get("status")
+                    
+                    if status in ("RAC", "WL"):
+                        session.state = ConversationState.HANDLE_WAITLIST_RAC
+                        new_state = ConversationState.HANDLE_WAITLIST_RAC
+                        
+                        prompt_text = ""
+                        if status == "RAC":
+                            prompt_text = "⚠️ *Berth is not available, only RAC seats available.*\n\nProceed or change?"
+                        else:
+                            prompt_text = "⚠️ *Only Waitlist (WL) seats are available for this train class.*\n\nShall I proceed with alternate transport, or alternate date?"
+                            
+                        response_payload = {
+                            "text": prompt_text,
+                            "buttons": [
+                                ("btn_wl_proceed", "✅ Proceed Anyway"),
+                                ("btn_wl_change", "🔄 Change Transport"),
+                            ]
+                        }
+                    # If AVL or NOT_FOUND, just continue to the next state normally
 
             # 10. Persist Updated Session to Redis
             await redis_store.save_session(session)

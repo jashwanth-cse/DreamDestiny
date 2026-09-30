@@ -41,6 +41,14 @@ class StateMachine:
             draft.budget_level = slots.budget_level
         if slots.transport_mode:
             draft.transport_mode = slots.transport_mode
+        if slots.train_class:
+            # Map slots.train_class string to BerthPreference
+            from app.schemas.trip import BerthPreference
+            try:
+                draft.berth_preference = BerthPreference(slots.train_class)
+            except ValueError:
+                # Fallback to any if invalid class
+                draft.berth_preference = BerthPreference.any
         if slots.hotel_category:
             draft.hotel_category = slots.hotel_category
         if slots.interests:
@@ -69,6 +77,8 @@ class StateMachine:
             return ConversationState.COLLECT_BUDGET
         if not draft.transport_mode:
             return ConversationState.COLLECT_TRANSPORT
+        if draft.transport_mode == TransportPref.train and not draft.berth_preference:
+            return ConversationState.COLLECT_TRAIN_CLASS
         if not draft.hotel_category:
             return ConversationState.COLLECT_HOTEL
 
@@ -82,7 +92,18 @@ class StateMachine:
         """
         # 1. Check for Invalid City input
         if slots.invalid_city:
-            return session.state, prompts.get_invalid_city_prompt(slots.invalid_city, is_origin=slots.is_origin_invalid)
+            if slots.suggested_city:
+                session.paused_state = session.state  # remember where we were
+                session.state = ConversationState.CONFIRM_CITY_TYPO
+            return session.state, prompts.get_invalid_city_prompt(slots.invalid_city, is_origin=slots.is_origin_invalid, suggested_city=slots.suggested_city)
+
+        # 1.b Check for Invalid Dates (ARP violation)
+        if slots.invalid_date_reason:
+            session.draft.start_date = None
+            session.draft.end_date = None
+            return ConversationState.COLLECT_DATES, {
+                "text": f"⚠️ {slots.invalid_date_reason}\n\n📅 When would you like to travel instead?"
+            }
 
         # 2. Check for Global Main Menu Request
         if slots.menu_intent:
@@ -131,7 +152,37 @@ class StateMachine:
                 return next_state, cls._get_prompt_for_state(next_state, session.draft, session.user_name)
             is_comp = (session.paused_state == ConversationState.COMPLETED)
             return ConversationState.RESUME_CHOICE, prompts.get_resumption_prompt(session.user_name, session.draft, is_completed=is_comp)
-
+            
+        # 5.b Handle City Typo Confirmation
+        if session.state == ConversationState.CONFIRM_CITY_TYPO:
+            if slots.confirmation_intent is True or (hasattr(slots, 'typo_confirmed_city') and slots.typo_confirmed_city):
+                city_to_set = getattr(slots, 'typo_confirmed_city', None) or slots.destination or slots.origin
+                if session.paused_state == ConversationState.COLLECT_ORIGIN:
+                    session.draft.origin = city_to_set
+                else:
+                    session.draft.destination = city_to_set
+                session.state = session.paused_state
+                session.paused_state = None
+                next_state = cls.get_next_missing_slot_state(session.draft)
+                session.state = next_state
+                return next_state, cls._get_prompt_for_state(next_state, session.draft, session.user_name)
+            elif slots.confirmation_intent is False:
+                session.state = session.paused_state
+                session.paused_state = None
+                return session.state, cls._get_prompt_for_state(session.state, session.draft, session.user_name)
+                
+        # 5.c Handle Waitlist RAC Response
+        if session.state == ConversationState.HANDLE_WAITLIST_RAC:
+            if slots.modification_intent == "change_transport" or slots.confirmation_intent is False:
+                session.draft.transport_mode = None
+                session.draft.berth_preference = None
+                session.state = ConversationState.COLLECT_TRANSPORT
+                return session.state, cls._get_prompt_for_state(session.state, session.draft, session.user_name)
+            elif slots.confirmation_intent is True:
+                # proceed to next state (hotel or confirm)
+                session.state = ConversationState.COLLECT_TRAIN_CLASS  # mock old state to transition past it
+                pass # let it fall through to step 6 to calculate next state
+                
         # 6. Apply extracted slots to draft
         cls.apply_slots(session.draft, slots)
 
@@ -243,6 +294,8 @@ class StateMachine:
             return prompts.get_budget_prompt()
         elif state == ConversationState.COLLECT_TRANSPORT:
             return prompts.get_transport_prompt()
+        elif state == ConversationState.COLLECT_TRAIN_CLASS:
+            return prompts.get_train_class_prompt()
         elif state == ConversationState.COLLECT_HOTEL:
             return prompts.get_hotel_prompt()
         elif state == ConversationState.CONFIRM_TRIP:

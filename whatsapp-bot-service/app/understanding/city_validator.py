@@ -83,13 +83,13 @@ class CityValidator:
             except Exception as e:
                 logger.warning("Could not initialize Gemini for city validation: %s", e)
 
-    async def validate_city(self, candidate: str) -> Tuple[bool, Optional[str]]:
+    async def validate_city(self, candidate: str) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Validates if candidate is a genuine city or travel destination.
-        Returns (is_valid, normalized_name).
+        Returns (is_valid, normalized_name, suggested_name).
         """
         if not candidate:
-            return False, None
+            return False, None, None
 
         clean = re.sub(r"^(?:to|from|visit|visiting|trip to|starting from)\s+", "", candidate.strip(), flags=re.IGNORECASE)
         clean = clean.strip(" .,!?-")
@@ -97,37 +97,71 @@ class CityValidator:
 
         # 1. Blocked phrases check
         if lower in BLOCKED_PHRASES or len(clean) < 2 or clean.isdigit():
-            return False, None
+            return False, None, None
 
         # 2. Known Indian & world destinations instant check
         if lower in KNOWN_CITIES:
-            return True, clean.title()
+            return True, clean.title(), None
 
-        # 3. LLM Oracle check for unlisted cities / towns
+        # 3. Google Maps Places API Check
+        if settings.google_maps_api_key:
+            import httpx
+            try:
+                url = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+                params = {
+                    "input": clean,
+                    "types": "(cities)",
+                    "key": settings.google_maps_api_key
+                }
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(url, params=params)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get("status") == "OK" and data.get("predictions"):
+                            main_text = data["predictions"][0].get("structured_formatting", {}).get("main_text", "")
+                            # If it's a direct match
+                            if main_text.lower() == lower:
+                                return True, main_text, None
+                            # If it's close, it might be a typo
+                            # We will still pass it to Gemini for typo confirmation to be safe
+            except Exception as e:
+                logger.warning("Google Places API check failed: %s", e)
+
+        # 4. LLM Oracle check for typos and unlisted cities
         if self._llm:
             try:
+                import json
                 prompt = (
-                    f"Is '{clean}' a real geographical city, town, district, village, or travel destination "
-                    f"in India or worldwide? Reply strictly YES or NO."
+                    f"The user entered '{clean}' as a travel destination. "
+                    f"Is this a real geographic city/destination? "
+                    f"If it has a spelling mistake (e.g. 'gao' instead of 'Goa', 'mumbay' for 'Mumbai'), what is the correct spelling? "
+                    f"Respond ONLY with valid JSON: {{\"is_valid\": bool, \"corrected_name\": \"string or null\"}}"
                 )
                 res = await self._llm.generate_content_async(prompt)
-                ans = res.text.strip().upper()
-                if "YES" in ans:
-                    return True, clean.title()
-                else:
-                    return False, None
+                raw = res.text.strip()
+                if raw.startswith("```"):
+                    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
+                
+                data = json.loads(raw)
+                is_valid = data.get("is_valid", False)
+                corrected = data.get("corrected_name")
+                
+                if is_valid and (not corrected or corrected.lower() == lower):
+                    return True, clean.title(), None
+                if corrected and corrected.lower() != lower:
+                    return False, None, corrected
+                return False, None, None
             except Exception as e:
                 logger.warning("Gemini place verification failed: %s. Falling back to length check.", e)
-                # If Gemini fails and text looks like a reasonable single/two word proper name, allow
                 words = clean.split()
                 if 1 <= len(words) <= 3 and all(w.isalpha() for w in words):
-                    return True, clean.title()
+                    return True, clean.title(), None
 
         # Fallback if no LLM: accept alpha strings of 3-30 chars not in blacklist
         if 3 <= len(clean) <= 30 and all(w.isalpha() for w in clean.split()):
-            return True, clean.title()
+            return True, clean.title(), None
 
-        return False, None
+        return False, None, None
 
 
 city_validator = CityValidator()

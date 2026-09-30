@@ -19,6 +19,16 @@ logger = logging.getLogger(__name__)
 
 class TripService:
     @staticmethod
+    async def check_transport_availability(draft: TripRequest, correlation_id: str) -> dict:
+        """Call Planner Gateway fast check."""
+        try:
+            req = draft.to_trip_request()
+            return await planner_gateway.check_transport(req, correlation_id)
+        except Exception as e:
+            logger.error("Failed to check transport: %s", e)
+            return {"status": "ERROR"}
+
+    @staticmethod
     async def generate_trip_itinerary(session: UserSession) -> bool:
         """
         Builds TripRequest from active session draft, calls existing Planner Gateway,

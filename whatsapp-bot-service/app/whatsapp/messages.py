@@ -137,35 +137,57 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
     lines.append("")
 
     # 3. Transport Recommendation (Outbound & Return)
-    outbound = itinerary.get("outbound_transport")
-    if outbound and isinstance(outbound, dict):
-        mode = outbound.get("mode", "Transport").title()
-        icon = "✈️" if "Flight" in mode else ("🚆" if "Train" in mode else "🚌")
-        lines.append(f"{icon} *TRANSIT & COMMUTE:*")
-        
-        t_name = outbound.get("train_name") or outbound.get("operator_name") or outbound.get("airline") or ""
-        t_num = outbound.get("train_number") or outbound.get("bus_type") or outbound.get("flight_id") or ""
-        dep_station = outbound.get("departure_station") or orig_title
-        arr_station = outbound.get("arrival_station") or dest_title
-        dep_time = outbound.get("departure_time") or ""
-        arr_time = outbound.get("arrival_time") or ""
-        fare = outbound.get("fare_per_person")
+    for t_key, t_label in [("outbound_transport", "Outbound"), ("return_transport", "Return")]:
+        transit = itinerary.get(t_key)
+        if transit and isinstance(transit, dict):
+            mode = transit.get("mode", "Transport").title()
+            icon = "✈️" if "Flight" in mode else ("🚆" if "Train" in mode else "🚌")
+            
+            # Print the header only for outbound, to group them together
+            if t_label == "Outbound":
+                lines.append(f"{icon} *TRANSIT & COMMUTE:*")
+            
+            t_name = transit.get("train_name") or transit.get("operator_name") or transit.get("airline") or ""
+            # Prioritize flight_number over flight_id to avoid showing fl_xxx hashes
+            t_num = transit.get("train_number") or transit.get("flight_number") or transit.get("bus_type") or transit.get("flight_id") or ""
+            
+            dep_station = transit.get("departure_station") or (orig_title if t_label == "Outbound" else dest_title)
+            arr_station = transit.get("arrival_station") or (dest_title if t_label == "Outbound" else orig_title)
+            dep_time = transit.get("departure_time") or ""
+            arr_time = transit.get("arrival_time") or ""
+            fare = transit.get("fare_per_person")
+            
+            # Seats logic
+            seats = transit.get("seats_available")
+            seat_status = transit.get("seat_status") or ""
+            seats_str = ""
+            if seats is not None:
+                if str(seats) == "0":
+                    seats_str = "WL/Waitlist"
+                else:
+                    status = f" ({seat_status})" if seat_status else ""
+                    seats_str = f"{seats} Seats{status}"
 
-        details = []
-        if t_name:
-            details.append(f"*{t_name}*" + (f" ({t_num})" if t_num else ""))
-        if dep_time or arr_time:
-            time_str = f"{dep_time} ➔ {arr_time}" if (dep_time and arr_time) else (dep_time or arr_time)
-            details.append(f"⏰ {time_str}")
-        if fare:
-            details.append(f"₹{fare:,}/person")
+            details = []
+            if t_name:
+                # Clean up any residual internal IDs in names
+                clean_name = t_name.split(" (fl_")[0].split(" (bs_")[0].split(" (tn_")[0]
+                clean_num = str(t_num).split(" (fl_")[0] if t_num else ""
+                details.append(f"*{clean_name}*" + (f" ({clean_num})" if clean_num else ""))
+            if dep_time or arr_time:
+                time_str = f"{dep_time} ➔ {arr_time}" if (dep_time and arr_time) else (dep_time or arr_time)
+                details.append(f"⏰ {time_str}")
+            if fare:
+                details.append(f"₹{fare:,}/person")
+            if seats_str:
+                details.append(f"💺 {seats_str}")
 
-        lines.append(f"• *Outbound ({mode}):* {', '.join(details) if details else 'Direct route'}")
-        if dep_station != orig_title or arr_station != dest_title:
-            lines.append(f"  _{dep_station} ➔ {arr_station}_")
-        if outbound.get("instruction"):
-            lines.append(f"  💡 {outbound['instruction']}")
-        lines.append("")
+            lines.append(f"• *{t_label} ({mode}):* {', '.join(details) if details else 'Direct route'}")
+            if dep_station != (orig_title if t_label == "Outbound" else dest_title) or arr_station != (dest_title if t_label == "Outbound" else orig_title):
+                lines.append(f"  _{dep_station} ➔ {arr_station}_")
+            if transit.get("instruction"):
+                lines.append(f"  💡 {transit['instruction']}")
+            lines.append("")
 
     # 4. Accommodation
     hotel = itinerary.get("hotel") or itinerary.get("accommodation")

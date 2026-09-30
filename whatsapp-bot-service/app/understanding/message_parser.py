@@ -139,6 +139,21 @@ class MessageParser:
                 slots.hotel_category = HotelPref.luxury
             elif payload_id == "btn_hotel_any":
                 slots.hotel_category = HotelPref.any
+            elif payload_id.startswith("btn_typo_yes_"):
+                slots.confirmation_intent = True
+                slots.typo_confirmed_city = payload_id.replace("btn_typo_yes_", "")
+            elif payload_id == "btn_typo_no":
+                slots.confirmation_intent = False
+            elif payload_id == "btn_wl_proceed":
+                slots.confirmation_intent = True
+            elif payload_id == "btn_wl_change":
+                slots.modification_intent = "change_transport"
+            elif payload_id == "btn_train_3a":
+                slots.train_class = "3A"
+            elif payload_id == "btn_train_2a":
+                slots.train_class = "2A"
+            elif payload_id == "btn_train_sl":
+                slots.train_class = "SL"
             elif payload_id == "btn_travelers_1":
                 slots.travelers = 1
             elif payload_id == "btn_travelers_2":
@@ -264,8 +279,21 @@ class MessageParser:
                 slots.hotel_category = HotelPref.mid_range
             elif re.search(r"\b(luxury hotel|resort|4[- ]?star|5[- ]?star|luxury)\b", lower):
                 slots.hotel_category = HotelPref.luxury
+                
+        # 11. Train Class Mapping
+        if not slots.train_class:
+            if re.search(r"\b(3a|3ac|3rd ac|third ac)\b", lower):
+                slots.train_class = "3A"
+            elif re.search(r"\b(2a|2ac|2nd ac|second ac)\b", lower):
+                slots.train_class = "2A"
+            elif re.search(r"\b(1a|1ac|1st ac|first ac)\b", lower):
+                slots.train_class = "1A"
+            elif re.search(r"\b(sl|sleeper)\b", lower):
+                slots.train_class = "SL"
+            elif re.search(r"\b(cc|chair car)\b", lower):
+                slots.train_class = "CC"
 
-        # 11. State-Aware Contextual Mapping (Single-word / direct reply support)
+        # 12. State-Aware Contextual Mapping (Single-word / direct reply support)
         if current_state:
             # When bot asked "Which city will you be traveling from?"
             if current_state == ConversationState.COLLECT_ORIGIN and not slots.origin:
@@ -430,42 +458,91 @@ class MessageParser:
         current_draft: Optional[TripDraft] = None,
     ) -> ExtractedTripSlots:
         """
-        Parses user input using fast deterministic rules first.
-        Falls back to Gemini 2.5 Flash structured JSON extraction for unstructured free-text.
+        Uses deterministic logic for payloads and simple intents.
+        Uses Gemini 2.5 Flash structured JSON extraction for unstructured free-text.
         """
-        slots = self.parse_deterministic(
-            text=text,
-            payload_id=payload_id,
-            current_state=current_state,
-            current_draft=current_draft,
-        )
         from app.understanding.city_validator import city_validator
+        
+        target_slots = None
+        
+        # 1. Deterministic Fast-Path for Payloads and Simple Commands
+        if payload_id:
+            target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
+        else:
+            clean_text = text.lower().strip()
+            if clean_text in ("menu", "main menu", "home"):
+                return ExtractedTripSlots(menu_intent=True)
+            if clean_text in ("restart", "reset", "cancel", "new trip"):
+                return ExtractedTripSlots(reset_intent=True)
+            if clean_text in ("past trips", "saved trips", "my trips"):
+                return ExtractedTripSlots(past_trips_intent=True)
+                
+            # Free text -> Gemini!
+            if self._llm:
+                try:
+                    target_slots = await self._parse_with_llm(text, current_state)
+                except Exception as e:
+                    logger.error("LLM parsing failed: %s, falling back to deterministic", e)
+                    target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
+            else:
+                target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
 
-        target_slots = slots
-        # If deterministic rules didn't catch slots on multi-word free text, invoke Gemini 2.5 Flash
-        if not target_slots.has_slots() and self._llm and len(text.strip().split()) >= 2:
-            try:
-                llm_slots = await self._parse_with_llm(text, current_state)
-                if llm_slots.has_slots():
-                    target_slots = llm_slots
-            except Exception as e:
-                logger.warning("LLM extraction failed: %s. Using deterministic slots.", e)
+        # 2. Date Boundary Validation (Advanced Reservation Periods)
+        today = date.today()
+        if target_slots.start_date:
+            days_ahead = (target_slots.start_date - today).days
+            
+            # Bound start_date strictly within the future, max 365 days
+            if days_ahead < 0:
+                target_slots.invalid_date_reason = "Past dates are not allowed. Please provide a future date."
+                target_slots.start_date = None
+                target_slots.end_date = None
+                target_slots.duration_days = None
+            elif days_ahead > 365:
+                target_slots.invalid_date_reason = "Flights and hotels can only be booked up to 12 months in advance."
+                target_slots.start_date = None
+                target_slots.end_date = None
+                target_slots.duration_days = None
+            else:
+                # If transport mode is selected, enforce strict ARP boundaries
+                mode = (target_slots.transport_mode or (current_draft and current_draft.transport_mode) or None)
+                if mode and target_slots.start_date:
+                    if mode == TransportPref.train and days_ahead > 60:
+                        target_slots.invalid_date_reason = "Train tickets can only be booked up to 60 days in advance (ARP)."
+                        target_slots.start_date = None
+                        target_slots.end_date = None
+                        target_slots.duration_days = None
+                    elif mode == TransportPref.bus and days_ahead > 30:
+                        target_slots.invalid_date_reason = "Bus tickets can usually only be booked up to 30 days in advance."
+                        target_slots.start_date = None
+                        target_slots.end_date = None
+                        target_slots.duration_days = None
 
-        # Validate destination candidate
+        # 3. Validate destination candidate
         if target_slots.destination:
-            is_valid, norm_dest = await city_validator.validate_city(target_slots.destination)
+            is_valid, norm_dest, sugg_dest = await city_validator.validate_city(target_slots.destination)
             if is_valid and norm_dest:
                 target_slots.destination = norm_dest
+            elif sugg_dest:
+                target_slots.invalid_city = target_slots.destination
+                target_slots.suggested_city = sugg_dest
+                target_slots.is_origin_invalid = False
+                target_slots.destination = None
             else:
                 target_slots.invalid_city = target_slots.destination
                 target_slots.is_origin_invalid = False
                 target_slots.destination = None
 
-        # Validate origin candidate
+        # 4. Validate origin candidate
         if target_slots.origin:
-            is_valid, norm_orig = await city_validator.validate_city(target_slots.origin)
+            is_valid, norm_orig, sugg_orig = await city_validator.validate_city(target_slots.origin)
             if is_valid and norm_orig:
                 target_slots.origin = norm_orig
+            elif sugg_orig:
+                target_slots.invalid_city = target_slots.origin
+                target_slots.suggested_city = sugg_orig
+                target_slots.is_origin_invalid = True
+                target_slots.origin = None
             else:
                 target_slots.invalid_city = target_slots.origin
                 target_slots.is_origin_invalid = True
@@ -475,10 +552,15 @@ class MessageParser:
 
     async def _parse_with_llm(self, text: str, current_state: Optional[ConversationState] = None) -> ExtractedTripSlots:
         """Structured Gemini 2.5 Flash JSON extraction for complex travel phrases."""
+        from datetime import date
+        today_str = date.today().isoformat()
+        current_year = date.today().year
+
         prompt = f"""
         You are a travel assistant extracting travel slots from user WhatsApp messages.
         Current context/question being answered: {current_state.value if current_state else 'General'}
         User message: "{text}"
+        Today's date is: {today_str}. Assume the year is {current_year} unless explicitly specified otherwise.
 
         Output ONLY a valid JSON object with these keys (null if missing):
         {{
@@ -491,7 +573,10 @@ class MessageParser:
             "budget_level": "low" | "medium" | "high" | null,
             "transport_mode": "train" | "bus" | "flight" | "any" | null,
             "hotel_category": "budget" | "mid_range" | "luxury" | null,
-            "interests": []
+            "train_class": "3A" | "2A" | "1A" | "SL" | "CC" | null,
+            "interests": [],
+            "confirmation_intent": boolean or null (if user explicitly affirms or denies),
+            "modification_intent": "string description" or null (if user asks to modify)
         }}
         """
         response = await self._llm.generate_content_async(prompt)

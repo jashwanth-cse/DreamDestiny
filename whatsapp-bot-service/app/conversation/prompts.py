@@ -152,8 +152,16 @@ def get_destination_prompt() -> Dict[str, Any]:
     }
 
 
-def get_invalid_city_prompt(candidate: str, is_origin: bool = False) -> Dict[str, Any]:
+def get_invalid_city_prompt(candidate: str, is_origin: bool = False, suggested_city: Optional[str] = None) -> Dict[str, Any]:
     role = "departure city" if is_origin else "destination"
+    if suggested_city:
+        return {
+            "text": f"🤔 I couldn't recognize *'{candidate}'*.\n\nDid you mean *{suggested_city}*?",
+            "buttons": [
+                (f"btn_typo_yes_{suggested_city[:15]}", f"✅ Yes, {suggested_city[:12]}"),
+                ("btn_typo_no", "❌ No, let me retype"),
+            ]
+        }
     return {
         "text": (
             f"🤔 I couldn't recognize *'{candidate}'* as a valid {role}.\n\n"
@@ -223,6 +231,17 @@ def get_hotel_prompt() -> Dict[str, Any]:
             ("btn_hotel_budget", "Budget / Hostel"),
             ("btn_hotel_mid", "3-Star Hotel"),
             ("btn_hotel_luxury", "Luxury Resort"),
+        ],
+    }
+
+
+def get_train_class_prompt() -> Dict[str, Any]:
+    return {
+        "text": "🚆 *Which train class do you prefer?*",
+        "buttons": [
+            ("btn_train_3a", "3AC"),
+            ("btn_train_2a", "2AC"),
+            ("btn_train_sl", "Sleeper (SL)"),
         ],
     }
 

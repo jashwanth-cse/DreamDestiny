@@ -32,6 +32,10 @@ class ExtractedTripSlots(BaseModel):
     selected_trip_number: Optional[int] = None  # 1-based index if user replied "Trip 1"
     invalid_city: Optional[str] = None          # Set if candidate place was unrecognized
     is_origin_invalid: bool = False             # True if invalid city was for origin
+    suggested_city: Optional[str] = None        # Set if Gemini caught a typo
+    typo_confirmed_city: Optional[str] = None   # Set if user clicks 'Yes' on typo prompt
+    train_class: Optional[str] = None           # e.g., '3A', '2A', 'SL'
+    invalid_date_reason: Optional[str] = None   # Set if ARP constraints are violated
 
     def has_slots(self) -> bool:
         """Returns True if at least one meaningful slot or intent was identified."""

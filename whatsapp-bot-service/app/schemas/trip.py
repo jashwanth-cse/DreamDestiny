@@ -105,6 +105,7 @@ class TripDraft(BaseModel):
     travelers: Optional[int] = None
     budget_level: Optional[BudgetLevel] = None
     transport_mode: Optional[TransportPref] = None
+    berth_preference: Optional[BerthPreference] = None
     hotel_category: Optional[HotelPref] = None
     interests: List[str] = Field(default_factory=list)
 
@@ -131,7 +132,10 @@ class TripDraft(BaseModel):
             travelers=self.travelers or 2,
             preferences=TripPreferences(
                 budget=BudgetPreferences(level=self.budget_level or BudgetLevel.medium),
-                transport=TransportPreferences(mode=self.transport_mode or TransportPref.any),
+                transport=TransportPreferences(
+                    mode=self.transport_mode or TransportPref.any,
+                    berth_preference=self.berth_preference
+                ),
                 hotel=HotelPreferences(category=self.hotel_category or HotelPref.any),
                 activities=ActivityPreferences(interests=self.interests or []),
             ),

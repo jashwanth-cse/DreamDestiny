@@ -79,5 +79,27 @@ class PlannerGatewayClient:
             logger.error("Network error contacting Planner Gateway [correlation_id=%s]: %s", correlation_id, exc)
             raise PlannerGatewayError("Could not connect to the backend planning service.", status_code=503) from exc
 
+    async def check_transport(
+        self, trip_request: TripRequest, correlation_id: str
+    ) -> Dict[str, Any]:
+        """
+        Calls POST /check-transport on the backend planner gateway.
+        """
+        client = await self.get_client()
+        headers = {
+            "Content-Type": "application/json",
+            "X-Correlation-ID": correlation_id,
+        }
+        payload = trip_request.model_dump(mode="json")
+        try:
+            resp = await client.post("/check-transport", json=payload, headers=headers)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                logger.error("Planner /check-transport error: %s", resp.text)
+                return {"status": "ERROR"}
+        except Exception as exc:
+            logger.error("Planner /check-transport failed: %s", exc)
+            return {"status": "ERROR"}
 
 planner_gateway = PlannerGatewayClient()

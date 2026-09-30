@@ -131,3 +131,45 @@ async def plan(trip: TripRequest) -> PlanResponse:
         logger.warning("Cost calculation / validation warning: %s", exc)
 
     return itinerary
+
+
+@router.post("/check-transport")
+async def check_transport(trip: TripRequest):
+    """
+    Fast endpoint to check transport availability before running full AI planning.
+    Returns status of the requested transport mode and class.
+    """
+    try:
+        context = await _orchestrator.build_context(trip)
+    except Exception as exc:
+        logger.exception("Orchestration failure during /check-transport: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to assemble trip data.")
+
+    pref = trip.preferences.transport
+    result = {"status": "NOT_FOUND", "seats": 0}
+
+    if pref.mode == "train":
+        trains = context.outbound_trains
+        if not trains:
+            return result
+        
+        target_class = pref.berth_preference or "3A"
+        # Find best available seat
+        best_status = "WL"
+        max_seats = 0
+
+        for t in trains:
+            for c in t.classes:
+                if c.travel_class == target_class:
+                    if c.seats_available > 0:
+                        return {"status": "AVL", "seats": c.seats_available}
+                    elif c.rac_seats > 0:
+                        best_status = "RAC"
+                        max_seats = max(max_seats, c.rac_seats)
+                    elif c.wl_seats > 0 and best_status == "WL":
+                        max_seats = max(max_seats, c.wl_seats)
+        
+        result["status"] = best_status
+        result["seats"] = max_seats
+
+    return result
