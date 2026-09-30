@@ -561,6 +561,9 @@ class MessageParser:
         Current context/question being answered: {current_state.value if current_state else 'General'}
         User message: "{text}"
         Today's date is: {today_str}. Assume the year is {current_year} unless explicitly specified otherwise.
+        
+        CRITICAL RULES:
+        - If the user is just answering the train class (e.g. SL, Sleeper, 3A, 2A), DO NOT extract "transport_mode" as "bus". Keep transport_mode null unless they explicitly say they want to change to a bus or flight.
 
         Output ONLY a valid JSON object with these keys (null if missing):
         {{
