@@ -298,13 +298,13 @@ class MessageParser:
             # When bot asked "Which city will you be traveling from?"
             if current_state == ConversationState.COLLECT_ORIGIN and not slots.origin:
                 city_cand = re.sub(r"^(?:from|starting from|i am at|i am in)\s+", "", clean_text, flags=re.IGNORECASE).strip()
-                if len(city_cand) >= 2 and not any(k in city_cand.lower() for k in ("yes", "no", "hi", "reset", "plan")):
+                if len(city_cand) >= 2 and city_cand.lower() not in ("yes", "no", "hi", "hello", "reset", "plan", "cancel", "new trip"):
                     slots.origin = city_cand.title()
 
             # When bot asked "Where is your dream destination?"
             elif current_state in (ConversationState.START, ConversationState.COLLECT_DESTINATION) and not slots.destination:
                 city_cand = re.sub(r"^(?:to|trip to|visit|visiting|going to)\s+", "", clean_text, flags=re.IGNORECASE).strip()
-                if len(city_cand) >= 2 and not any(k in city_cand.lower() for k in ("yes", "no", "hi", "reset", "plan")):
+                if len(city_cand) >= 2 and city_cand.lower() not in ("yes", "no", "hi", "hello", "reset", "plan", "cancel", "new trip"):
                     slots.destination = city_cand.title()
 
             # When bot asked "How many people are traveling?"
