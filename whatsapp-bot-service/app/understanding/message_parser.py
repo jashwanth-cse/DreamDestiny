@@ -255,7 +255,7 @@ class MessageParser:
         if not slots.transport_mode:
             if re.search(r"\b(train|railway|irctc|express)\b", lower):
                 slots.transport_mode = TransportPref.train
-            elif re.search(r"\b(bus|redbus|coach|sleeper)\b", lower):
+            elif re.search(r"\b(bus|redbus|coach|volvo)\b", lower):
                 slots.transport_mode = TransportPref.bus
             elif re.search(r"\b(flight|fly|plane|air|airline)\b", lower):
                 slots.transport_mode = TransportPref.flight
@@ -465,27 +465,24 @@ class MessageParser:
         
         target_slots = None
         
-        # 1. Deterministic Fast-Path for Payloads and Simple Commands
-        if payload_id:
-            target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
-        else:
-            clean_text = text.lower().strip()
-            if clean_text in ("menu", "main menu", "home"):
-                return ExtractedTripSlots(menu_intent=True)
-            if clean_text in ("restart", "reset", "cancel", "new trip"):
-                return ExtractedTripSlots(reset_intent=True)
-            if clean_text in ("past trips", "saved trips", "my trips"):
-                return ExtractedTripSlots(past_trips_intent=True)
-                
-            # Free text -> Gemini!
-            if self._llm:
+        # 1. Deterministic Fast-Path
+        target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
+
+        # 2. LLM Fallback (if deterministic extracted nothing meaningful and text is > 1 word)
+        # Note: If deterministic matched something (like a date, intent, or city contextually), we use it to save LLM tokens and time.
+        if self._llm and not payload_id and text:
+            word_count = len(text.strip().split())
+            if word_count > 1 and not target_slots.has_slots():
                 try:
-                    target_slots = await self._parse_with_llm(text, current_state)
+                    llm_slots = await self._parse_with_llm(text, current_state)
+                    
+                    # Prevent LLM hallucination: if user is picking train class, ignore spurious transport mode changes
+                    if current_state == ConversationState.COLLECT_TRAIN_CLASS and llm_slots.train_class:
+                        llm_slots.transport_mode = None
+                        
+                    target_slots = llm_slots
                 except Exception as e:
-                    logger.error("LLM parsing failed: %s, falling back to deterministic", e)
-                    target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
-            else:
-                target_slots = self.parse_deterministic(text, payload_id, current_state, current_draft)
+                    logger.warning("LLM extraction failed: %s", e)
 
         # 2. Date Boundary Validation (Advanced Reservation Periods)
         today = date.today()

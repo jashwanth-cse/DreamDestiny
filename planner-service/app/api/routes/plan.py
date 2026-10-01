@@ -161,13 +161,22 @@ async def check_transport(trip: TripRequest):
         for t in trains:
             for c in t.classes:
                 if c.travel_class == target_class:
-                    if c.seats_available > 0:
-                        return {"status": "AVL", "seats": c.seats_available}
-                    elif c.rac_seats > 0:
+                    avail_str = (c.availability or "").upper()
+                    
+                    num_seats = 0
+                    if "-" in avail_str:
+                        try:
+                            num_seats = int(avail_str.split("-")[1])
+                        except ValueError:
+                            pass
+                            
+                    if avail_str.startswith("AVAILABLE"):
+                        return {"status": "AVL", "seats": num_seats}
+                    elif avail_str.startswith("RAC"):
                         best_status = "RAC"
-                        max_seats = max(max_seats, c.rac_seats)
-                    elif c.wl_seats > 0 and best_status == "WL":
-                        max_seats = max(max_seats, c.wl_seats)
+                        max_seats = max(max_seats, num_seats)
+                    elif avail_str.startswith("WL") and best_status == "WL":
+                        max_seats = max(max_seats, num_seats)
         
         result["status"] = best_status
         result["seats"] = max_seats
