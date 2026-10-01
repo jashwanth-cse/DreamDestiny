@@ -21,7 +21,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-2.5-flash"
+_MODEL = "gemini-2.0-flash"
 
 
 class GeminiClient:
