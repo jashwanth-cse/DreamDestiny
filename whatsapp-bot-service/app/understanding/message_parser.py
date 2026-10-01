@@ -40,7 +40,7 @@ class MessageParser:
         if genai and gemini_api_key:
             try:
                 genai.configure(api_key=gemini_api_key)
-                self._llm = genai.GenerativeModel("gemini-2.0-flash")
+                self._llm = genai.GenerativeModel("gemini-2.5-flash")
                 logger.info("Initialized Gemini 2.5 Flash for WhatsApp natural language parsing.")
             except Exception as e:
                 logger.warning("Could not initialize Gemini LLM for message understanding: %s", e)

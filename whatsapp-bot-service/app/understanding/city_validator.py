@@ -79,7 +79,7 @@ class CityValidator:
         if genai and gemini_api_key:
             try:
                 genai.configure(api_key=gemini_api_key)
-                self._llm = genai.GenerativeModel("gemini-2.0-flash")
+                self._llm = genai.GenerativeModel("gemini-2.5-flash")
             except Exception as e:
                 logger.warning("Could not initialize Gemini for city validation: %s", e)
 
