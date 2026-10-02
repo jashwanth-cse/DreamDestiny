@@ -21,9 +21,9 @@ logger = logging.getLogger(__name__)
 
 # Optional Google Generative AI import
 try:
-    import google.generativeai as genai
+    
 except ImportError:
-    genai = None
+    
 
 MONTH_NAMES = {
     "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
@@ -34,12 +34,12 @@ MONTH_NAMES = {
 
 
 class MessageParser:
-    def __init__(self, gemini_api_key: Optional[str] = settings.gemini_api_key):
-        self._gemini_api_key = gemini_api_key
+    def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
+        self._bedrock_api_key = bedrock_api_key
         self._llm = None
-        if genai and gemini_api_key:
+        if genai and bedrock_api_key:
             try:
-                genai.configure(api_key=gemini_api_key)
+                genai.configure(api_key=bedrock_api_key)
                 self._llm = genai.GenerativeModel("gemini-2.5-flash")
                 logger.info("Initialized Gemini 2.5 Flash for WhatsApp natural language parsing.")
             except Exception as e:

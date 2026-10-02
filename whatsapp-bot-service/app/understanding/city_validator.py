@@ -13,9 +13,9 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 try:
-    import google.generativeai as genai
+    
 except ImportError:
-    genai = None
+    
 
 # Curated set of common Indian travel hubs, cities, and tourist spots for instant O(1) matching
 KNOWN_CITIES = {
@@ -74,11 +74,11 @@ BLOCKED_PHRASES = {
 
 
 class CityValidator:
-    def __init__(self, gemini_api_key: Optional[str] = settings.gemini_api_key):
+    def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
         self._llm = None
-        if genai and gemini_api_key:
+        if genai and bedrock_api_key:
             try:
-                genai.configure(api_key=gemini_api_key)
+                genai.configure(api_key=bedrock_api_key)
                 self._llm = genai.GenerativeModel("gemini-2.5-flash")
             except Exception as e:
                 logger.warning("Could not initialize Gemini for city validation: %s", e)

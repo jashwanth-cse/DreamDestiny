@@ -28,7 +28,7 @@ from pydantic import ValidationError
 from app.agents.base import BaseAgent, AgentError
 from app.schemas.context import TripContext, TrainContext, BusContext, HotelContext, FlightContext, FlightResolutionContext
 from app.schemas.itinerary import Itinerary
-from app.services.llm.gemini_client import GeminiClient, GeminiError
+from app.services.llm.llm_client import BedrockLLMClient, LLMError
 from app.services.llm.prompts import PLANNING_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -619,11 +619,11 @@ def _itinerary_json_schema() -> dict:
 
 class PlanningAgent(BaseAgent[Itinerary]):
     """
-    Uses Gemini to produce a grounded, structured Itinerary from TripContext.
-    Constructor-injected with a GeminiClient so the LLM backend is swappable.
+    Uses Bedrock to produce a grounded, structured Itinerary from TripContext.
+    Constructor-injected with a BedrockLLMClient so the LLM backend is swappable.
     """
 
-    def __init__(self, llm: GeminiClient) -> None:
+    def __init__(self, llm: BedrockLLMClient) -> None:
         self._llm = llm
 
     async def plan(self, context: TripContext) -> Itinerary:
@@ -632,7 +632,7 @@ class PlanningAgent(BaseAgent[Itinerary]):
 
         Flow:
           1. Pre-filter TripContext into a minimal, grounded payload.
-          2. Send system prompt + payload to GeminiClient.
+          2. Send system prompt + payload to BedrockLLMClient.
           3. Validate raw JSON response with Pydantic Itinerary.
           4. Return typed Itinerary.
         """
@@ -657,7 +657,7 @@ class PlanningAgent(BaseAgent[Itinerary]):
                 user_data=payload,
                 json_schema=schema,
             )
-        except GeminiError as exc:
+        except LLMError as exc:
             raise AgentError(str(exc), cause=exc)
 
         try:

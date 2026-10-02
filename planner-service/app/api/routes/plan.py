@@ -24,7 +24,7 @@ from app.clients.transport_client import BusClient, TrainClient
 from app.orchestration.trip_orchestrator import TripOrchestrator
 from app.schemas.itinerary import Itinerary
 from app.schemas.request import TripRequest
-from app.services.llm.gemini_client import GeminiClient
+from app.services.llm.llm_client import BedrockLLMClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,8 +32,8 @@ router = APIRouter()
 
 # ── Singletons ────────────────────────────────────────────────────────────────
 # Orchestrator is shared (has granular in-memory cache).
-# GeminiClient + PlanningAgent are lazy — initialised on first request so the
-# server starts even if GEMINI_API_KEY is not yet set.
+# BedrockLLMClient + PlanningAgent are lazy — initialised on first request so the
+# server starts even if BEDROCK_API_KEY is not yet set.
 
 _orchestrator = TripOrchestrator(
     tourism=TourismClient(),
@@ -52,11 +52,11 @@ def _get_agent() -> PlanningAgent:
     global _agent
     if _agent is None:
         try:
-            _agent = PlanningAgent(llm=GeminiClient())
+            _agent = PlanningAgent(llm=BedrockLLMClient())
         except RuntimeError as exc:
             raise HTTPException(
                 status_code=503,
-                detail="Planning agent is not configured (GEMINI_API_KEY missing).",
+                detail="Planning agent is not configured (BEDROCK_API_KEY missing).",
             ) from exc
     return _agent
 
@@ -78,7 +78,7 @@ class PlanResponse(Itinerary):
         "Runs the full planning pipeline:\n\n"
         "1. Validates `TripRequest`.\n"
         "2. Collects data from all services concurrently (with caching).\n"
-        "3. Passes the normalized `TripContext` to the Gemini Planning Agent.\n"
+        "3. Passes the normalized `TripContext` to the Bedrock Planning Agent.\n"
         "4. Validates the structured itinerary response with Pydantic.\n"
         "5. Returns the typed `Itinerary`.\n\n"
         "**Strict grounding:** the agent references only data present in the "

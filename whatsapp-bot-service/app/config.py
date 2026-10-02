@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # Backend Planner Gateway URL (Points to planner-service or NGINX gateway)
     planner_gateway_url: str = "http://planner-service:8000"
-    gemini_api_key: Optional[str] = None
+    bedrock_api_key: Optional[str] = None
     google_maps_api_key: Optional[str] = None
 
     # Timeouts & TTLs

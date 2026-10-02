@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 # Optional Google Generative AI import
 try:
-    import google.generativeai as genai
+    
 except ImportError:
-    genai = None
+    
 
 # In-scope navigation and travel regex patterns
 NAVIGATION_PATTERNS = re.compile(
@@ -53,12 +53,12 @@ OFF_TOPIC_PATTERNS = [
 
 
 class GuardrailShield:
-    def __init__(self, gemini_api_key: Optional[str] = settings.gemini_api_key):
-        self._gemini_api_key = gemini_api_key
+    def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
+        self._bedrock_api_key = bedrock_api_key
         self._llm = None
-        if genai and gemini_api_key:
+        if genai and bedrock_api_key:
             try:
-                genai.configure(api_key=gemini_api_key)
+                genai.configure(api_key=bedrock_api_key)
                 self._llm = genai.GenerativeModel("gemini-2.5-flash")
             except Exception as e:
                 logger.warning("Could not initialize Gemini LLM for Guardrail: %s", e)
