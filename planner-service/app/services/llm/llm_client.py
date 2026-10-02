@@ -39,7 +39,9 @@ class BedrockLLMClient:
             f"SYSTEM INSTRUCTIONS:\n{system_prompt}\n\n"
             "Here is the TripContext for this planning request:\n\n"
             + json.dumps(user_data, ensure_ascii=False, indent=2)
-            + "\n\nProduce the Itinerary JSON as specified. ONLY output valid JSON."
+            + "\n\nCRITICAL: You MUST output exactly ONE valid JSON object conforming strictly to this JSON schema. Do not omit any required fields:\n\n"
+            + json.dumps(json_schema, indent=2)
+            + "\n\nProduce the Itinerary JSON now. ONLY output valid JSON. No markdown backticks. No extra text."
         )
 
         messages = [
@@ -69,6 +71,11 @@ class BedrockLLMClient:
         if not raw_text or not raw_text.strip():
             raise LLMError("Bedrock returned an empty response body.")
 
+        import re
+        raw_text = raw_text.strip()
+        if raw_text.startswith("```"):
+            raw_text = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_text)
+            
         try:
             return json.loads(raw_text)
         except json.JSONDecodeError as exc:
