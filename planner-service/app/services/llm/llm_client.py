@@ -55,8 +55,8 @@ class BedrockLLMClient:
             response = await self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                response_format={"type": "json_object"},
-                temperature=0.2
+                temperature=0.2,
+                max_tokens=8192
             )
         except Exception as exc:
             logger.error("Bedrock API error: %s", exc)
@@ -64,6 +64,8 @@ class BedrockLLMClient:
 
         try:
             raw_text = response.choices[0].message.content
+            logger.info("Bedrock raw text response length: %d", len(raw_text) if raw_text else 0)
+            logger.debug("Bedrock raw text: %s", raw_text)
         except Exception as exc:
             logger.error("Bedrock response has no text: %s", exc)
             raise LLMError("Bedrock returned an empty response.") from exc
