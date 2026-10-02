@@ -317,3 +317,24 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  # 📈 12. Dozzle Log Viewer 📈
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dream-destiny-dozzle
+    restart: unless-stopped
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOZZLE_LEVEL=info
+      - DOZZLE_TAILSIZE=300
+      - DOZZLE_USERNAME=${DOZZLE_USERNAME:-admin}
+      - DOZZLE_PASSWORD=${DOZZLE_PASSWORD:-dreamlogs123}
+    networks:
+      - dream-destiny-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
