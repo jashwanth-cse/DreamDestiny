@@ -164,7 +164,6 @@ class ConversationManager:
                 ):
                     # Pause transition, query planner-service fast check
                     logger.info("Checking transport availability for user %s", wa_id)
-                    from app.services.trip_service import trip_service
                     
                     status_dict = await trip_service.check_transport_availability(session.draft, session.correlation_id)
                     status = status_dict.get("status")
