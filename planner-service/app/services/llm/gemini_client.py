@@ -52,14 +52,16 @@ class GeminiClient:
         """
         global _CIRCUIT_DOWN_UNTIL
 
-        user_content = (
+        # Gemma models often reject `system_instruction` with 400/500 errors.
+        # So we inject the system instructions directly into the top of the user prompt.
+        combined_content = (
+            f"{system_prompt}\n\n"
             "Here is the TripContext for this planning request:\n\n"
             + json.dumps(user_data, ensure_ascii=False, indent=2)
             + "\n\nProduce the Itinerary JSON as specified."
         )
 
         config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
             temperature=0.2,
             response_mime_type="application/json",
             response_schema=json_schema,
@@ -77,7 +79,7 @@ class GeminiClient:
         try:
             response = await self._client.aio.models.generate_content(
                 model=current_model,
-                contents=user_content,
+                contents=combined_content,
                 config=config,
             )
         except Exception as exc:
@@ -90,7 +92,7 @@ class GeminiClient:
                 try:
                     response = await self._client.aio.models.generate_content(
                         model=_BACKUP_MODEL,
-                        contents=user_content,
+                        contents=combined_content,
                         config=config,
                     )
                 except Exception as backup_exc:
