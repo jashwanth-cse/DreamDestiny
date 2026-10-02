@@ -28,16 +28,8 @@ MONTH_NAMES = {
 
 
 class MessageParser:
-    def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
-        self._bedrock_api_key = bedrock_api_key
-        self._llm = None
-        if bedrock_api_key:
-            try:
-                genai.configure(api_key=bedrock_api_key)
-                self._llm = genai.GenerativeModel("gemini-2.5-flash")
-                logger.info("Initialized Gemini 2.5 Flash for WhatsApp natural language parsing.")
-            except Exception as e:
-                logger.warning("Could not initialize Gemini LLM for message understanding: %s", e)
+    def __init__(self):
+        pass
 
     def parse_deterministic(
         self,

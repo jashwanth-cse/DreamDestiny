@@ -71,16 +71,10 @@ BLOCKED_PHRASES = {
 
 
 class CityValidator:
-    def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
-        self._llm = None
-        if bedrock_api_key:
-            try:
-                genai.configure(api_key=bedrock_api_key)
-                self._llm = genai.GenerativeModel("gemini-2.5-flash")
-            except Exception as e:
-                logger.warning("Could not initialize Gemini for city validation: %s", e)
+    def __init__(self):
+        pass
 
-    async def validate_city(self, candidate: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    def validate_city(self, candidate: str) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Validates if candidate is a genuine city or travel destination.
         Returns (is_valid, normalized_name, suggested_name).

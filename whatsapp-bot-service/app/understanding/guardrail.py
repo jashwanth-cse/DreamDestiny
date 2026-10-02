@@ -47,17 +47,10 @@ OFF_TOPIC_PATTERNS = [
 
 
 class GuardrailShield:
-    def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
-        self._bedrock_api_key = bedrock_api_key
-        self._llm = None
-        if bedrock_api_key:
-            try:
-                genai.configure(api_key=bedrock_api_key)
-                self._llm = genai.GenerativeModel("gemini-2.5-flash")
-            except Exception as e:
-                logger.warning("Could not initialize Gemini LLM for Guardrail: %s", e)
+    def __init__(self):
+        pass
 
-    async def is_in_scope(self, text: Optional[str], payload_id: Optional[str] = None) -> bool:
+    def is_in_scope(self, text: Optional[str], payload_id: Optional[str] = None) -> bool:
         """
         Determines whether the incoming user request is strictly in-scope for our Travel Concierge.
         Returns True if in-scope, False if off-topic.
