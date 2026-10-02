@@ -74,7 +74,7 @@ class CityValidator:
     def __init__(self):
         pass
 
-    def validate_city(self, candidate: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    async def validate_city(self, candidate: str) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Validates if candidate is a genuine city or travel destination.
         Returns (is_valid, normalized_name, suggested_name).
@@ -119,35 +119,34 @@ class CityValidator:
                 logger.warning("Google Places API check failed: %s", e)
 
         # 4. LLM Oracle check for typos and unlisted cities
-        if self._llm:
-            try:
-                import json
-                prompt = (
-                    f"The user entered '{clean}' as a travel destination. "
-                    f"Is this a real geographic city/destination? "
-                    f"If it has a spelling mistake (e.g. 'gao' instead of 'Goa', 'mumbay' for 'Mumbai'), what is the correct spelling? "
-                    f"Respond ONLY with valid JSON: {{\"is_valid\": bool, \"corrected_name\": \"string or null\"}}"
-                )
-                from app.understanding.llm_router import global_llm_router
-                res = await global_llm_router.generate_content_async(prompt)
-                raw = res.text.strip()
-                if raw.startswith("```"):
-                    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
-                
-                data = json.loads(raw)
-                is_valid = data.get("is_valid", False)
-                corrected = data.get("corrected_name")
-                
-                if is_valid and (not corrected or corrected.lower() == lower):
-                    return True, clean.title(), None
-                if corrected and corrected.lower() != lower:
-                    return False, None, corrected
-                return False, None, None
-            except Exception as e:
-                logger.warning("Gemini place verification failed: %s. Falling back to length check.", e)
-                words = clean.split()
-                if 1 <= len(words) <= 3 and all(w.isalpha() for w in words):
-                    return True, clean.title(), None
+        try:
+            import json
+            prompt = (
+                f"The user entered '{clean}' as a travel destination. "
+                f"Is this a real geographic city/destination? "
+                f"If it has a spelling mistake (e.g. 'gao' instead of 'Goa', 'mumbay' for 'Mumbai'), what is the correct spelling? "
+                f"Respond ONLY with valid JSON: {{\"is_valid\": bool, \"corrected_name\": \"string or null\"}}"
+            )
+            from app.understanding.llm_router import global_llm_router
+            res = await global_llm_router.generate_content_async(prompt)
+            raw = res.text.strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
+            
+            data = json.loads(raw)
+            is_valid = data.get("is_valid", False)
+            corrected = data.get("corrected_name")
+            
+            if is_valid and (not corrected or corrected.lower() == lower):
+                return True, clean.title(), None
+            if corrected and corrected.lower() != lower:
+                return False, None, corrected
+            return False, None, None
+        except Exception as e:
+            logger.warning("Bedrock place verification failed: %s. Falling back to length check.", e)
+            words = clean.split()
+            if 1 <= len(words) <= 3 and all(w.isalpha() for w in words):
+                return True, clean.title(), None
 
         # Fallback if no LLM: accept alpha strings of 3-30 chars not in blacklist
         if 3 <= len(clean) <= 30 and all(w.isalpha() for w in clean.split()):
