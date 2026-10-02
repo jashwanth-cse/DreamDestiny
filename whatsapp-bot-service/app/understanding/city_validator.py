@@ -73,7 +73,7 @@ BLOCKED_PHRASES = {
 class CityValidator:
     def __init__(self, bedrock_api_key: Optional[str] = settings.bedrock_api_key):
         self._llm = None
-        if genai and bedrock_api_key:
+        if bedrock_api_key:
             try:
                 genai.configure(api_key=bedrock_api_key)
                 self._llm = genai.GenerativeModel("gemini-2.5-flash")
