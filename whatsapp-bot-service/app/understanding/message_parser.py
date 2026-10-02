@@ -579,7 +579,8 @@ class MessageParser:
             "modification_intent": "string description" or null (if user asks to modify)
         }}
         """
-        response = await self._llm.generate_content_async(prompt)
+        from app.understanding.llm_router import global_llm_router
+        response = await global_llm_router.generate_content_async(prompt)
         raw_text = response.text.strip()
         if raw_text.startswith("```"):
             raw_text = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_text)

@@ -197,5 +197,45 @@ class RedisStore:
             return trips[index]
         return None
 
+    # --- Global Rate Limiting / Queueing ---
+    async def get_active_generations(self) -> int:
+        """Returns the current number of active itinerary generations globally."""
+        if not self._client:
+            return 0
+        try:
+            val = await self._client.get("global_active_generations")
+            return int(val) if val else 0
+        except Exception:
+            return 0
+
+    async def acquire_generation_slot(self, limit: int = 2) -> bool:
+        """Atomic INCR to acquire a slot. Returns True if acquired, False if over limit."""
+        if not self._client:
+            return True
+        try:
+            current = await self._client.incr("global_active_generations")
+            if current == 1:
+                # Set expire just in case of crash leak
+                await self._client.expire("global_active_generations", 600)
+            if current <= limit:
+                return True
+            else:
+                # Over limit, revert
+                await self._client.decr("global_active_generations")
+                return False
+        except Exception as e:
+            logger.error("Error acquiring global generation slot: %s", e)
+            return True # Fail open to not block completely if redis goes weird
+
+    async def release_generation_slot(self) -> None:
+        """Atomic DECR to release a slot."""
+        if not self._client:
+            return
+        try:
+            current = await self._client.decr("global_active_generations")
+            if current < 0:
+                await self._client.set("global_active_generations", 0)
+        except Exception as e:
+            logger.error("Error releasing global generation slot: %s", e)
 
 redis_store = RedisStore()

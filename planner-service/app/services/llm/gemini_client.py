@@ -21,13 +21,16 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-2.5-flash"
+import time
 
+_PRIMARY_MODEL = "gemma-4-26b-a4b-it"
+_BACKUP_MODEL = "gemini-3.8-flash"
+_CIRCUIT_DOWN_UNTIL = 0
 
 class GeminiClient:
     """
-    Stateless Gemini JSON generation client.
-    Initialised lazily — no API call at construction time.
+    Stateless Gemini JSON generation client with Circuit Breaker.
+    Initialised lazily ?" no API call at construction time.
     """
 
     def __init__(self) -> None:
@@ -36,7 +39,7 @@ class GeminiClient:
                 "GEMINI_API_KEY is not set. Add it to planner-service/.env"
             )
         self._client = genai.Client(api_key=settings.gemini_api_key)
-        logger.info("GeminiClient initialised with model %s", _MODEL)
+        logger.info(f"GeminiClient initialised with Primary: {_PRIMARY_MODEL}, Backup: {_BACKUP_MODEL}")
 
     async def generate_json(
         self,
@@ -45,19 +48,10 @@ class GeminiClient:
         json_schema: dict[str, Any],
     ) -> dict[str, Any]:
         """
-        Generate a JSON object from the model.
-
-        Args:
-            system_prompt: Permanent planning rules (never contains user data).
-            user_data:     Structured TripContext payload as a plain dict.
-            json_schema:   Pydantic-generated JSON schema for constrained output.
-
-        Returns:
-            Parsed dict from the model response.
-
-        Raises:
-            GeminiError: On API error, timeout, or non-JSON response.
+        Generate a JSON object from the model with Fallback capabilities.
         """
+        global _CIRCUIT_DOWN_UNTIL
+
         user_content = (
             "Here is the TripContext for this planning request:\n\n"
             + json.dumps(user_data, ensure_ascii=False, indent=2)
@@ -72,21 +66,38 @@ class GeminiClient:
         )
 
         response = None
-        for attempt in range(1, 4):
-            try:
-                response = await self._client.aio.models.generate_content(
-                    model=_MODEL,
-                    contents=user_content,
-                    config=config,
-                )
-                break
-            except Exception as exc:
-                err_str = str(exc)
-                if attempt < 3 and ("503" in err_str or "UNAVAILABLE" in err_str or "429" in err_str or "ResourceExhausted" in err_str):
-                    logger.warning("Gemini API transient error (%s). Retrying attempt %d/3...", exc, attempt + 1)
-                    await asyncio.sleep(2.5 * attempt)
-                    continue
-                logger.error("Gemini API error: %s", exc)
+        
+        # Decide which model to use
+        if time.time() < _CIRCUIT_DOWN_UNTIL:
+            current_model = _BACKUP_MODEL
+            logger.info(f"Primary model is in cool-down. Routing to {_BACKUP_MODEL}")
+        else:
+            current_model = _PRIMARY_MODEL
+
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=current_model,
+                contents=user_content,
+                config=config,
+            )
+        except Exception as exc:
+            err_str = str(exc)
+            if current_model == _PRIMARY_MODEL:
+                logger.warning(f"Primary model {_PRIMARY_MODEL} failed: {exc}. Tripping circuit breaker for 60s and falling back to {_BACKUP_MODEL}.")
+                _CIRCUIT_DOWN_UNTIL = time.time() + 60
+                
+                # Retry immediately with backup
+                try:
+                    response = await self._client.aio.models.generate_content(
+                        model=_BACKUP_MODEL,
+                        contents=user_content,
+                        config=config,
+                    )
+                except Exception as backup_exc:
+                    logger.error("Backup Gemini API error: %s", backup_exc)
+                    raise GeminiError("Gemini API backup request failed.") from backup_exc
+            else:
+                logger.error("Gemini API error on backup: %s", exc)
                 raise GeminiError("Gemini API request failed.") from exc
 
         try:
@@ -103,7 +114,6 @@ class GeminiClient:
         except json.JSONDecodeError as exc:
             logger.error("Gemini non-JSON response: %s", raw_text[:500])
             raise GeminiError("Gemini returned non-JSON output.") from exc
-
 
 class GeminiError(Exception):
     """Raised when the Gemini client cannot produce a valid response."""

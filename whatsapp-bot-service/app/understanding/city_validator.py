@@ -137,7 +137,8 @@ class CityValidator:
                     f"If it has a spelling mistake (e.g. 'gao' instead of 'Goa', 'mumbay' for 'Mumbai'), what is the correct spelling? "
                     f"Respond ONLY with valid JSON: {{\"is_valid\": bool, \"corrected_name\": \"string or null\"}}"
                 )
-                res = await self._llm.generate_content_async(prompt)
+                from app.understanding.llm_router import global_llm_router
+                res = await global_llm_router.generate_content_async(prompt)
                 raw = res.text.strip()
                 if raw.startswith("```"):
                     raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)

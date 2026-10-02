@@ -4,6 +4,7 @@ persisting versioned itineraries in Firestore, and returning formatted WhatsApp 
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, Optional
 
 from app.schemas.conversation import UserSession, ConversationState, TripRecord, ItineraryVersionRecord
@@ -49,8 +50,26 @@ class TripService:
             return False
 
         try:
-            # 1. Call Backend Planner Gateway
-            itinerary_data = await planner_gateway.generate_itinerary(trip_request, correlation_id)
+            # Check global active generations
+            active_gen = await redis_store.get_active_generations()
+            if active_gen >= 2:
+                logger.info(f"High traffic (active={active_gen}), queueing {wa_id}")
+                await whatsapp_client.send_message_payload(
+                    build_text_message(wa_id, "🌴 *High Traffic Alert!* 🌴\nWe are currently experiencing a high volume of travel requests. Your itinerary is safely in the queue and will be generated shortly. Thanks for your patience! ✨")
+                )
+            
+            # Wait for a slot
+            while True:
+                acquired = await redis_store.acquire_generation_slot(limit=2)
+                if acquired:
+                    break
+                await asyncio.sleep(3)
+
+            try:
+                # 1. Call Backend Planner Gateway
+                itinerary_data = await planner_gateway.generate_itinerary(trip_request, correlation_id)
+            finally:
+                await redis_store.release_generation_slot()
 
             # 2. Persist Trip & Itinerary in Firestore
             trip = TripRecord(

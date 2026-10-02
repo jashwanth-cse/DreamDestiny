@@ -119,7 +119,8 @@ class GuardrailShield:
                     "cooking recipes, homework, or general trivia, it is OFF-TOPIC.\n"
                     "Respond with exactly one word: IN_SCOPE or OFF_TOPIC."
                 )
-                response = await self._llm.generate_content_async(prompt)
+                from app.understanding.llm_router import global_llm_router
+                response = await global_llm_router.generate_content_async(prompt)
                 decision = response.text.strip().upper()
                 if "OFF_TOPIC" in decision:
                     logger.info("[GUARDRAIL] LLM classified as OFF_TOPIC: '%s'", clean)
