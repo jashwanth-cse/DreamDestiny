@@ -456,7 +456,7 @@ class MessageParser:
 
         # 2. LLM Fallback (if deterministic extracted nothing meaningful and text is > 1 word)
         # Note: If deterministic matched something (like a date, intent, or city contextually), we use it to save LLM tokens and time.
-        if self._llm and not payload_id and text:
+        if not payload_id and text:
             word_count = len(text.strip().split())
             if word_count > 1 and not target_slots.has_slots():
                 try:
