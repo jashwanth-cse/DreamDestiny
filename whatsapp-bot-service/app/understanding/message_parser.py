@@ -19,12 +19,6 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Optional Google Generative AI import
-try:
-    
-except ImportError:
-    
-
 MONTH_NAMES = {
     "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3,
     "apr": 4, "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,

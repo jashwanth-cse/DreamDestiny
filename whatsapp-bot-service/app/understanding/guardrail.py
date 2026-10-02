@@ -14,12 +14,6 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Optional Google Generative AI import
-try:
-    
-except ImportError:
-    
-
 # In-scope navigation and travel regex patterns
 NAVIGATION_PATTERNS = re.compile(
     r"^(hi|hello|hey|greetings|hola|namaste|vanakkam|good\s*(morning|afternoon|evening)|"

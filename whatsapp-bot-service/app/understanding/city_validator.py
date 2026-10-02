@@ -12,10 +12,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-try:
-    
-except ImportError:
-    
+
 
 # Curated set of common Indian travel hubs, cities, and tourist spots for instant O(1) matching
 KNOWN_CITIES = {
