@@ -50,7 +50,7 @@ class GuardrailShield:
     def __init__(self):
         pass
 
-    def is_in_scope(self, text: Optional[str], payload_id: Optional[str] = None) -> bool:
+    async def is_in_scope(self, text: Optional[str], payload_id: Optional[str] = None) -> bool:
         """
         Determines whether the incoming user request is strictly in-scope for our Travel Concierge.
         Returns True if in-scope, False if off-topic.
@@ -94,28 +94,27 @@ class GuardrailShield:
         if len(words) <= 3:
             return True
 
-        # 5. For longer unstructured text, consult Gemini 2.5 Flash oracle
-        if self._llm:
-            try:
-                prompt = (
-                    "You are a strict domain guardrail for a WhatsApp AI Travel & Vacation Assistant named Dream Destiny.\n"
-                    f"User message: \"{clean}\"\n\n"
-                    "Determine if this message is relevant to travel, vacations, trips, geography, tourism, hotels, "
-                    "transportation, activities, budget, greetings, or conversational navigation.\n"
-                    "If the user asks about unrelated topics such as coding, math, general science, politics, "
-                    "cooking recipes, homework, or general trivia, it is OFF-TOPIC.\n"
-                    "Respond with exactly one word: IN_SCOPE or OFF_TOPIC."
-                )
-                from app.understanding.llm_router import global_llm_router
-                response = await global_llm_router.generate_content_async(prompt)
-                decision = response.text.strip().upper()
-                if "OFF_TOPIC" in decision:
-                    logger.info("[GUARDRAIL] LLM classified as OFF_TOPIC: '%s'", clean)
-                    return False
-                return True
-            except Exception as exc:
-                logger.warning("[GUARDRAIL] LLM classification error: %s. Defaulting to in-scope.", exc)
-                return True
+        # 5. For longer unstructured text, consult Bedrock oracle
+        try:
+            prompt = (
+                "You are a strict domain guardrail for a WhatsApp AI Travel & Vacation Assistant named Dream Destiny.\n"
+                f"User message: \"{clean}\"\n\n"
+                "Determine if this message is relevant to travel, vacations, trips, geography, tourism, hotels, "
+                "transportation, activities, budget, greetings, or conversational navigation.\n"
+                "If the user asks about unrelated topics such as coding, math, general science, politics, "
+                "cooking recipes, homework, or general trivia, it is OFF-TOPIC.\n"
+                "Respond with exactly one word: IN_SCOPE or OFF_TOPIC."
+            )
+            from app.understanding.llm_router import global_llm_router
+            response = await global_llm_router.generate_content_async(prompt)
+            decision = response.upper()
+            if "OFF_TOPIC" in decision:
+                logger.info("[GUARDRAIL] LLM classified as OFF_TOPIC: '%s'", clean)
+                return False
+            return True
+        except Exception as exc:
+            logger.warning("[GUARDRAIL] LLM classification error: %s. Defaulting to in-scope.", exc)
+            return True
 
         return True
 
