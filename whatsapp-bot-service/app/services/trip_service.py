@@ -13,7 +13,7 @@ from app.clients.planner_gateway import planner_gateway, PlannerGatewayError
 from app.storage.firestore_store import firestore_store
 from app.storage.redis_store import redis_store
 from app.whatsapp.client import whatsapp_client
-from app.whatsapp.messages import format_itinerary_message, build_text_message
+from app.whatsapp.messages import format_itinerary_message, build_text_message, build_review_list_message
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class TripService:
 
             # 3. Update active session and archive in Redis
             session.current_trip_id = trip.trip_id
-            session.state = ConversationState.COMPLETED
+            session.state = ConversationState.AWAITING_REVIEW
             await redis_store.save_session(session)
 
             # Archive trip into Redis for fast My Trips / Menu access
@@ -118,6 +118,10 @@ class TripService:
                 itinerary_data, origin=trip_request.origin, destination=trip_request.destination
             )
             await whatsapp_client.send_message_payload(build_text_message(wa_id, formatted_text))
+
+            # 5. Send Interactive 5-Star Rating Prompt
+            review_msg = build_review_list_message(wa_id, destination=trip_request.destination)
+            await whatsapp_client.send_message_payload(review_msg)
             return True
 
         except PlannerGatewayError as exc:

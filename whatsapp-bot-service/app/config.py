@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     google_maps_api_key: Optional[str] = None
 
     # Timeouts & TTLs
-    conversation_ttl_seconds: int = 172800  # 48 hours
+    conversation_ttl_seconds: int = 2592000  # 30 days (multi-day session persistence)
     request_timeout_seconds: float = 30.0
     lock_timeout_seconds: float = 10.0
     idempotency_ttl_seconds: int = 86400  # 24 hours

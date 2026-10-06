@@ -7,8 +7,34 @@ Follows Section 11 of the specification:
 - Direct clickable Google Maps navigation links for attractions and accommodation
 """
 
+import re
 import urllib.parse
 from typing import List, Tuple, Dict, Any, Optional
+
+
+def format_12hr_time(raw_time: Optional[str]) -> str:
+    """
+    Converts 24-hr time like '13:00' or '01:05' to 12-hr format with AM/PM like '1:00 PM' or '1:05 AM'.
+    If already in 12-hr format or unparseable, returns clean string without crashing.
+    """
+    if not raw_time:
+        return ""
+    clean = str(raw_time).strip()
+    if re.search(r"(?i)\b(am|pm)\b", clean):
+        return clean
+
+    match = re.search(r"\b(\d{1,2}):(\d{2})(?::\d{2})?\b", clean)
+    if match:
+        hh = int(match.group(1))
+        mm = match.group(2)
+        if 0 <= hh <= 23:
+            period = "AM" if hh < 12 else "PM"
+            hh12 = hh % 12
+            if hh12 == 0:
+                hh12 = 12
+            converted = f"{hh12}:{mm} {period}"
+            return clean.replace(match.group(0), converted)
+    return clean
 
 
 def build_text_message(recipient: str, text: str) -> Dict[str, Any]:
@@ -153,8 +179,8 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
             
             dep_station = transit.get("departure_station") or (orig_title if t_label == "Outbound" else dest_title)
             arr_station = transit.get("arrival_station") or (dest_title if t_label == "Outbound" else orig_title)
-            dep_time = transit.get("departure_time") or ""
-            arr_time = transit.get("arrival_time") or ""
+            dep_time = format_12hr_time(transit.get("departure_time"))
+            arr_time = format_12hr_time(transit.get("arrival_time"))
             fare = transit.get("fare_per_person")
             
             # Seats logic
@@ -186,7 +212,8 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
             if dep_station != (orig_title if t_label == "Outbound" else dest_title) or arr_station != (dest_title if t_label == "Outbound" else orig_title):
                 lines.append(f"  _{dep_station} ➔ {arr_station}_")
             if transit.get("instruction"):
-                lines.append(f"  💡 {transit['instruction']}")
+                clean_instruction = format_12hr_time(transit['instruction'])
+                lines.append(f"  💡 {clean_instruction}")
             lines.append("")
 
     # 4. Accommodation
@@ -236,7 +263,7 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
             for act in acts:
                 if isinstance(act, dict):
                     name = act.get("attraction_name") or act.get("name") or act.get("title") or act.get("description") or "Sightseeing Spot"
-                    start_time = act.get("start_time") or act.get("time") or act.get("slot") or ""
+                    start_time = format_12hr_time(act.get("start_time") or act.get("time") or act.get("slot") or "")
                     dur_min = act.get("duration_minutes")
                     notes = act.get("notes") or ""
                     cost = act.get("estimated_cost") or act.get("cost") or act.get("price")
@@ -285,3 +312,33 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
     lines.append("• Or reply _'Menu'_ for options or _'New trip'_ to plan another journey")
 
     return "\n".join(lines)
+
+
+def build_review_list_message(recipient: str, destination: str) -> Dict[str, Any]:
+    """
+    Constructs an interactive 5-Star rating list message for customer feedback.
+    """
+    dest = (destination or "your trip").strip().title()
+    body_text = (
+        f"⭐ *How would you rate your Dream Destiny itinerary for {dest}?*\n\n"
+        "Your feedback helps us continuously improve and showcases real traveler experiences on our website!"
+    )
+    sections = [
+        {
+            "title": "Select Rating",
+            "rows": [
+                {"id": "RATE_5", "title": "⭐⭐⭐⭐⭐ 5 Stars", "description": "Loved it! Excellent planning."},
+                {"id": "RATE_4", "title": "⭐⭐⭐⭐ 4 Stars", "description": "Great trip, highly recommended."},
+                {"id": "RATE_3", "title": "⭐⭐⭐ 3 Stars", "description": "Good itinerary, met expectations."},
+                {"id": "RATE_2", "title": "⭐⭐ 2 Stars", "description": "Needs some improvement."},
+                {"id": "RATE_1", "title": "⭐ 1 Star", "description": "Unsatisfied / poor experience."},
+            ],
+        }
+    ]
+    return build_list_message(
+        recipient=recipient,
+        body_text=body_text,
+        button_label="⭐ Rate Itinerary",
+        sections=sections,
+        title_text="Traveler Review",
+    )

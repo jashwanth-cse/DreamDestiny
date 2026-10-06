@@ -270,13 +270,15 @@ services:
     image: redis:7-alpine
     container_name: dream-destiny-redis
     restart: always
-    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", "900", "1", "300", "10", "60", "10000"]
+    volumes:
+      - ./redis_data:/data
     networks:
       - dream-destiny-prod-net
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

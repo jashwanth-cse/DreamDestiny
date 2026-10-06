@@ -106,6 +106,43 @@ class ConversationManager:
 
             clean_text = event.text.strip().lower() if event.text else ""
 
+            # 6.5 User Review Interceptor (5-Star rating after itinerary generation)
+            if session.state == ConversationState.AWAITING_REVIEW:
+                raw_input = (event.payload_id or event.text or "").strip().lower()
+                rating = None
+                if "rate_5" in raw_input or "5 star" in raw_input or raw_input == "5" or raw_input.count("⭐") >= 5:
+                    rating = 5
+                elif "rate_4" in raw_input or "4 star" in raw_input or raw_input == "4" or raw_input.count("⭐") == 4:
+                    rating = 4
+                elif "rate_3" in raw_input or "3 star" in raw_input or raw_input == "3" or raw_input.count("⭐") == 3:
+                    rating = 3
+                elif "rate_2" in raw_input or "2 star" in raw_input or raw_input == "2" or raw_input.count("⭐") == 2:
+                    rating = 2
+                elif "rate_1" in raw_input or "1 star" in raw_input or raw_input == "1" or raw_input.count("⭐") == 1:
+                    rating = 1
+
+                if rating is not None:
+                    dest = session.draft.destination or "India"
+                    # Feed customer review with reviewer's name alone into Firestore
+                    await firestore_store.save_customer_review(
+                        reviewer_name=session.user_name,
+                        rating=rating,
+                        destination=dest,
+                        review_text=event.text if event.text and not event.payload_id else None,
+                    )
+                    stars_str = "⭐" * rating
+                    thank_you_text = (
+                        f"🙏 *Thank you so much, {session.user_name}!* \n\n"
+                        f"We've recorded your *{stars_str} ({rating}/5)* review for *{dest.strip().title()}*.\n"
+                        "Your feedback will be featured on our website to inspire fellow travelers! ✈️🏖️\n\n"
+                        "💡 Reply *'Menu'* for more options, or *'New trip'* to plan your next vacation."
+                    )
+                    session.state = ConversationState.COMPLETED
+                    await redis_store.save_session(session)
+                    outgoing_payload = build_text_message(recipient=wa_id, text=thank_you_text)
+                    await whatsapp_client.send_message_payload(outgoing_payload)
+                    return
+
             # 7. Inactivity / Resumption Interceptor
             # If user returns after long inactivity OR previous itinerary was already finalized,
             # and sends a casual greeting without specific trip slots:

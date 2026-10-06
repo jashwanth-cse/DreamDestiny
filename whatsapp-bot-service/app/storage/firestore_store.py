@@ -208,5 +208,41 @@ class FirestoreStore:
                 return ItineraryVersionRecord.model_validate(versions[-1])
         return None
 
+    async def save_customer_review(
+        self,
+        reviewer_name: str,
+        rating: int,
+        destination: str,
+        review_text: Optional[str] = None,
+    ) -> bool:
+        """
+        Stores public customer reviews in Firestore for showcase on the website.
+        Does NOT store the user's private phone number / wa_id so it can be queried publicly.
+        Collection: 'reviews'
+        """
+        from datetime import datetime, timezone
+        review_doc = {
+            "reviewer_name": reviewer_name or "Anonymous Traveler",
+            "rating": max(1, min(5, int(rating))),
+            "destination": destination or "Incredible India",
+            "review_text": review_text or "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": "published",
+        }
+        if self._db:
+            try:
+                await self._db.collection("reviews").add(review_doc)
+                logger.info("Saved %d-star review from %s to Firestore reviews collection", rating, reviewer_name)
+                return True
+            except Exception as e:
+                logger.error("Error saving review to Firestore: %s", e)
+                return False
+        else:
+            if not hasattr(self, "_reviews"):
+                self._reviews = []
+            self._reviews.append(review_doc)
+            logger.info("[OFFLINE REVIEWS] Saved review locally: %s", review_doc)
+            return True
+
 
 firestore_store = FirestoreStore()

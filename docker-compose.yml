@@ -177,15 +177,24 @@ services:
       retries: 3
       start_period: 5s
 
-# ── Volumes ───────────────────────────────────────────────────────────────────
-volumes:
-  hotel-cache-data:
-    driver: local
-
-# ── Networks ──────────────────────────────────────────────────────────────────
-networks:
-  dream-destiny-net:
-    driver: bridge
+  # ── 10. Redis Cache & Distributed Lock ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: dream-destiny-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", "900", "1", "300", "10", "60", "10000"]
+    volumes:
+      - ./redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - dream-destiny-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
 
   # 📈 12. Dozzle Log Viewer 📈
   dozzle:
@@ -203,3 +212,13 @@ networks:
       - DOZZLE_PASSWORD=${DOZZLE_PASSWORD:-dreamlogs123}
     networks:
       - dream-destiny-net
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  hotel-cache-data:
+    driver: local
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  dream-destiny-net:
+    driver: bridge

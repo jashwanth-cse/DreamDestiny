@@ -161,7 +161,14 @@ Use pace to decide how many attractions per day:
   intensive: 6-7 attractions per day
 
 Group geographically close attractions on the same day using lat/lon.
-Suggest realistic start_time (HH:MM 24h) and duration_minutes for each visit.
+Suggest realistic start_time in 12-hour format with AM/PM (e.g. "09:30 AM", "02:00 PM", "06:30 PM") and duration_minutes for each visit.
+
+════════════════════════════════════════════════════════════════
+TIME FORMAT RULES (MANDATORY 12-HOUR FORMAT)
+════════════════════════════════════════════════════════════════
+
+- All departure_time, arrival_time, and activity start_time fields MUST strictly use 12-hour format with AM/PM (e.g., "09:30 AM", "01:00 PM", "08:55 PM").
+- NEVER use 24-hour military/railway time like "13:00" or "20:55". Always format with AM or PM.
 
 ════════════════════════════════════════════════════════════════
 PLANNING NOTES
