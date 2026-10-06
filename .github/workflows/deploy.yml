@@ -29,7 +29,12 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" << 'EOF'
+          ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=120 \
+            -o TCPKeepAlive=yes \
+            "$SSH_USER@$SSH_HOST" << 'EOF'
             set -e
             echo "=========================================================="
             echo "[CI/CD] Starting automated deployment on EC2..."
@@ -37,19 +42,59 @@ jobs:
             cd /opt/dream-destiny
             sudo chown -R "$USER:$USER" /opt/dream-destiny
 
-            echo "[1/4] Pulling latest changes from GitHub main branch..."
+            echo "[1/5] Fetching latest changes from GitHub main branch..."
             git fetch origin main
+
+            # Identify services whose source code actually changed
+            CHANGED_FILES=$(git diff --name-only HEAD origin/main || true)
+            echo "Changed files detected:"
+            echo "$CHANGED_FILES"
+
             git reset --hard origin/main
 
-            echo "[2/5] Rebuilding and waiting for containers to become healthy..."
-            docker compose -f docker-compose.prod.yml up -d --build --wait --remove-orphans
+            echo "[2/5] Building only modified microservices sequentially to protect EC2 RAM..."
+            SERVICES_TO_BUILD=""
+            if echo "$CHANGED_FILES" | grep -q "^whatsapp-bot-service/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD whatsapp-bot-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^planner-service/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD planner-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^hotel-service/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD hotel-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^tourism-service/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD tourism-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^route-service/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD route-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^transport-service/flight/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD flight-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^transport-service/train/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD train-service"
+            fi
+            if echo "$CHANGED_FILES" | grep -q "^transport-service/bus/"; then
+                SERVICES_TO_BUILD="$SERVICES_TO_BUILD bus-service"
+            fi
 
-            echo "[3/5] Refreshing gateway to bind updated configuration and resolve container IPs..."
+            if [ -n "$SERVICES_TO_BUILD" ]; then
+                echo "Services requiring build: $SERVICES_TO_BUILD"
+                for svc in $SERVICES_TO_BUILD; do
+                    echo "--> Building $svc sequentially..."
+                    docker compose -f docker-compose.prod.yml build "$svc"
+                done
+            else
+                echo "No microservice source code changed. Skipping Docker builds."
+            fi
+
+            echo "[3/5] Starting containers and applying config updates..."
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "[4/5] Refreshing gateway to bind updated configuration..."
             docker compose -f docker-compose.prod.yml restart gateway
-            sleep 3
-
-            echo "[4/5] Pruning dangling Docker build caches..."
-            docker image prune -f
+            sleep 4
 
             echo "[5/5] Verifying all service health probes through reverse proxy..."
             python3 deploy/verify_deployment.py http://localhost
