@@ -37,13 +37,63 @@ class FirestoreStore:
         self._itineraries: Dict[str, List[Dict[str, Any]]] = {}
 
     def connect(self):
-        if firestore is not None and (self._project_id or settings.google_application_credentials):
+        if firestore is None:
+            logger.info("Firestore package not available. Using in-memory store for durable records.")
+            return
+
+        credentials = None
+
+        # 1. Direct Private Key + Client Email authentication from environment
+        if settings.firebase_private_key and settings.firebase_client_email:
             try:
-                self._db = firestore.AsyncClient(project=self._project_id)
-                logger.info("Connected to Google Cloud Firestore with project %s", self._project_id)
+                from google.oauth2 import service_account
+                clean_key = settings.firebase_private_key.replace("\\n", "\n").strip()
+                if clean_key.startswith('"') and clean_key.endswith('"'):
+                    clean_key = clean_key[1:-1].replace("\\n", "\n").strip()
+
+                proj = self._project_id or settings.firebase_project_id
+                info = {
+                    "type": "service_account",
+                    "project_id": proj,
+                    "private_key": clean_key,
+                    "client_email": settings.firebase_client_email.strip(),
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                }
+                credentials = service_account.Credentials.from_service_account_info(info)
+                logger.info("Successfully constructed Firestore credentials from private key.")
+            except Exception as e:
+                logger.warning("Could not construct credentials from FIREBASE_PRIVATE_KEY: %s", e)
+
+        # 2. Complete JSON string in environment variable
+        elif settings.firebase_service_account_json:
+            try:
+                import json
+                from google.oauth2 import service_account
+                raw_json = settings.firebase_service_account_json.strip()
+                info = json.loads(raw_json)
+                credentials = service_account.Credentials.from_service_account_info(info)
+                logger.info("Successfully loaded Firestore credentials from JSON string.")
+            except Exception as e:
+                logger.warning("Could not construct credentials from FIREBASE_SERVICE_ACCOUNT_JSON: %s", e)
+
+        # 3. Initialize Firestore Client
+        if credentials:
+            try:
+                proj_id = self._project_id or settings.firebase_project_id
+                self._db = firestore.AsyncClient(project=proj_id, credentials=credentials)
+                logger.info("Connected to Google Cloud Firestore with project %s using service account %s", proj_id, settings.firebase_client_email or "custom")
                 return
             except Exception as e:
-                logger.warning("Could not initialize Firestore Client: %s. Using in-memory store.", e)
+                logger.warning("Could not initialize Firestore Client with credentials: %s. Using in-memory store.", e)
+                self._db = None
+
+        elif self._project_id or settings.google_application_credentials:
+            try:
+                self._db = firestore.AsyncClient(project=self._project_id)
+                logger.info("Connected to Google Cloud Firestore with default credentials for project %s", self._project_id)
+                return
+            except Exception as e:
+                logger.warning("Could not initialize Firestore Client with default credentials: %s. Using in-memory store.", e)
                 self._db = None
         else:
             logger.info("Firestore credentials not configured. Using in-memory store for durable records.")

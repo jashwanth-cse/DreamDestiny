@@ -302,6 +302,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PLANNER_GATEWAY_URL=http://planner-service:8000
       - BEDROCK_API_KEY=${BEDROCK_API_KEY:-}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL:-}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-}
+      - FIREBASE_SERVICE_ACCOUNT_JSON=${FIREBASE_SERVICE_ACCOUNT_JSON:-}
     networks:
       - dream-destiny-prod-net
     depends_on:

@@ -27,12 +27,16 @@ build/
 *.sqlite3
 *.db
 hotel_cache.db
-
+serviceKey.json
 # Keys, certificates, and secrets
 *.pem
 *.key
 *.crt
 *.cert
+*serviceKey*.json
+*firebase*.json
+*service-account*.json
+credentials/
 deploy/*.pem
 deploy/user_data.sh
 .env

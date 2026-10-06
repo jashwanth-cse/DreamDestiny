@@ -24,6 +24,9 @@ class Settings(BaseSettings):
 
     # Firestore
     firebase_project_id: Optional[str] = None
+    firebase_client_email: Optional[str] = None
+    firebase_private_key: Optional[str] = None
+    firebase_service_account_json: Optional[str] = None
     google_application_credentials: Optional[str] = None
 
     # Backend Planner Gateway URL (Points to planner-service or NGINX gateway)
