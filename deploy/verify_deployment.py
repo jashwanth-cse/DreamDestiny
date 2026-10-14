@@ -102,36 +102,67 @@ def print_container_logs(container_name: str, lines: int = 30):
         pass
 
 
-def check_endpoint(label: str, url: str, method: str = "GET", payload: dict = None, expected_statuses: tuple = (200,)):
-    start_t = time.time()
-    data_bytes = json.dumps(payload).encode("utf-8") if payload else None
-    headers = {"Content-Type": "application/json"} if payload else {}
+def check_endpoint(
+    label: str,
+    url: str,
+    method: str = "GET",
+    payload: dict = None,
+    expected_statuses: tuple = (200,),
+    retries: int = 1,
+    retry_delay: float = 2.0,
+):
+    for attempt in range(1, retries + 1):
+        start_t = time.time()
+        data_bytes = json.dumps(payload).encode("utf-8") if payload else None
+        headers = {"Content-Type": "application/json"} if payload else {}
 
-    import ssl
-    ctx = ssl.create_default_context()
-    if "localhost" in url or "127.0.0.1" in url:
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        import ssl
+        ctx = ssl.create_default_context()
+        if "localhost" in url or "127.0.0.1" in url:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
 
-    req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+                elapsed_ms = round((time.time() - start_t) * 1000)
+                status = resp.status
+                passed = status in expected_statuses
+                if passed:
+                    tag = "[PASS]"
+                    attempt_str = f" (attempt {attempt})" if attempt > 1 else ""
+                    print(f"{tag:<7} | {method:<4} | {status} | {elapsed_ms:>5}ms | {label:<22} -> {url}{attempt_str}")
+                    return True, None
+                elif attempt < retries:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    tag = "[FAIL]"
+                    print(f"{tag:<7} | {method:<4} | {status} | {elapsed_ms:>5}ms | {label:<22} -> {url}")
+                    return False, f"HTTP {status}"
+        except urllib.error.HTTPError as e:
             elapsed_ms = round((time.time() - start_t) * 1000)
-            status = resp.status
-            passed = status in expected_statuses
-            tag = "[PASS]" if passed else "[FAIL]"
-            print(f"{tag:<7} | {method:<4} | {status} | {elapsed_ms:>5}ms | {label:<22} -> {url}")
-            return passed, None
-    except urllib.error.HTTPError as e:
-        elapsed_ms = round((time.time() - start_t) * 1000)
-        passed = e.code in expected_statuses
-        tag = "[PASS]" if passed else "[FAIL]"
-        print(f"{tag:<7} | {method:<4} | {e.code} | {elapsed_ms:>5}ms | {label:<22} -> {url}")
-        return passed, f"HTTP {e.code}"
-    except Exception as e:
-        elapsed_ms = round((time.time() - start_t) * 1000)
-        print(f"[FAIL]  | {method:<4} | ERR | {elapsed_ms:>5}ms | {label:<22} -> {url} ({e})")
-        return False, str(e)
+            passed = e.code in expected_statuses
+            if passed:
+                tag = "[PASS]"
+                attempt_str = f" (attempt {attempt})" if attempt > 1 else ""
+                print(f"{tag:<7} | {method:<4} | {e.code} | {elapsed_ms:>5}ms | {label:<22} -> {url}{attempt_str}")
+                return True, None
+            elif attempt < retries:
+                time.sleep(retry_delay)
+                continue
+            else:
+                tag = "[FAIL]"
+                print(f"{tag:<7} | {method:<4} | {e.code} | {elapsed_ms:>5}ms | {label:<22} -> {url}")
+                return False, f"HTTP {e.code}"
+        except Exception as e:
+            elapsed_ms = round((time.time() - start_t) * 1000)
+            if attempt < retries:
+                time.sleep(retry_delay)
+                continue
+            else:
+                print(f"[FAIL]  | {method:<4} | ERR | {elapsed_ms:>5}ms | {label:<22} -> {url} ({e})")
+                return False, str(e)
 
 
 def run_deep_checks(base_url: str):
@@ -161,6 +192,8 @@ def main():
     parser = argparse.ArgumentParser(description="Verify Dream Destiny Gateway Endpoints")
     parser.add_argument("url", nargs="?", default="http://localhost", help="Base URL of the reverse proxy (default: http://localhost)")
     parser.add_argument("--deep", action="store_true", help="Run deep data endpoints in addition to health probes")
+    parser.add_argument("--retries", type=int, default=3, help="Number of retry attempts per endpoint (default: 3)")
+    parser.add_argument("--retry-delay", type=float, default=3.0, help="Seconds to wait between retries (default: 3.0)")
     args = parser.parse_args()
 
     base_url = args.url.rstrip("/")
@@ -176,7 +209,12 @@ def main():
 
     for svc in SERVICES:
         full_url = f"{base_url}{svc['path']}"
-        passed, err = check_endpoint(svc["label"], full_url)
+        passed, err = check_endpoint(
+            svc["label"],
+            full_url,
+            retries=args.retries,
+            retry_delay=args.retry_delay,
+        )
         if passed:
             passed_count += 1
         else:

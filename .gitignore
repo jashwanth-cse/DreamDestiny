@@ -16,6 +16,7 @@ venv.bak/
 # Project specifics
 .vscode/
 .idea/
+.deploy_state/
 
 # Distribution / packaging
 dist/

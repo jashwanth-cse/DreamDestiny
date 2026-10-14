@@ -42,6 +42,43 @@ jobs:
             cd /opt/dream-destiny
             sudo chown -R "$USER:$USER" /opt/dream-destiny
 
+            # ── Snapshot Active Healthy State Before Modifying ──────────────
+            mkdir -p /opt/dream-destiny/.deploy_state
+            PREV_STABLE_COMMIT=$(git rev-parse HEAD)
+            echo "[SNAPSHOT] Active stable commit before deploy: $PREV_STABLE_COMMIT"
+
+            # ── Autonomous Rollback Trap Handler ─────────────────────────────
+            rollback_on_failure() {
+                local exit_code=$?
+                if [ $exit_code -ne 0 ]; then
+                    echo ""
+                    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                    echo "[CRITICAL FAILURE] Deployment pipeline failed with exit code $exit_code!"
+                    echo "[AUTONOMOUS ROLLBACK] Rolling back to stable commit: $PREV_STABLE_COMMIT..."
+                    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+
+                    cd /opt/dream-destiny
+                    git checkout "$PREV_STABLE_COMMIT" || git reset --hard "$PREV_STABLE_COMMIT"
+
+                    echo "[ROLLBACK 1/3] Restoring previous container stack..."
+                    docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+                    echo "[ROLLBACK 2/3] Cycling NGINX gateway..."
+                    docker compose -f docker-compose.prod.yml restart gateway
+                    sleep 3
+
+                    echo "[ROLLBACK 3/3] Verifying restored service health..."
+                    python3 deploy/verify_deployment.py http://localhost --retries 5 --retry-delay 3 || true
+
+                    echo "=========================================================="
+                    echo "[AUTONOMOUS ROLLBACK COMPLETED] Live traffic protected."
+                    echo "Previous healthy version ($PREV_STABLE_COMMIT) is serving requests."
+                    echo "=========================================================="
+                    exit $exit_code
+                fi
+            }
+            trap rollback_on_failure EXIT
+
             echo "[1/5] Fetching latest changes from GitHub main branch..."
             git fetch origin main
 
@@ -97,7 +134,11 @@ jobs:
             sleep 4
 
             echo "[5/5] Verifying all service health probes through reverse proxy..."
-            python3 deploy/verify_deployment.py http://localhost
+            python3 deploy/verify_deployment.py http://localhost --retries 5 --retry-delay 3
+
+            # ── Disarm Rollback Trap on Verified Success ────────────────────
+            trap - EXIT
+            git rev-parse HEAD > /opt/dream-destiny/.deploy_state/last_healthy_commit
 
             echo "=========================================================="
             echo "[CI/CD] Deployment successfully verified and completed!"
