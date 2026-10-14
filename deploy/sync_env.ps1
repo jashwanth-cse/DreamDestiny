@@ -32,14 +32,17 @@ if (-not (Test-Path -Path $KeyPath)) {
     exit 1
 }
 
-# 2. Upload .env to EC2
-Write-Host "[1/3] Uploading local .env to EC2 ($Ec2Host)..." -ForegroundColor Yellow
+# 2. Upload .env and .htpasswd to EC2
+Write-Host "[1/3] Uploading local .env and .htpasswd to EC2 ($Ec2Host)..." -ForegroundColor Yellow
 scp -i $KeyPath -o StrictHostKeyChecking=no ".env" "${Ec2User}@${Ec2Host}:${RemoteDir}/.env"
+if (Test-Path -Path ".htpasswd") {
+    scp -i $KeyPath -o StrictHostKeyChecking=no ".htpasswd" "${Ec2User}@${Ec2Host}:${RemoteDir}/.htpasswd"
+}
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Failed to upload .env via SCP." -ForegroundColor Red
+    Write-Host "[ERROR] Failed to upload configuration via SCP." -ForegroundColor Red
     exit 1
 }
-Write-Host "       .env uploaded successfully!" -ForegroundColor Green
+Write-Host "       Configuration uploaded successfully!" -ForegroundColor Green
 
 # 3. Reload container(s) on EC2
 if ($Service -eq "all") {

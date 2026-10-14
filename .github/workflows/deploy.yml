@@ -89,6 +89,11 @@ jobs:
 
             git reset --hard origin/main
 
+            # Ensure .htpasswd exists for NGINX Basic Auth on /logs
+            if [ ! -f .htpasswd ]; then
+                python3 -c "import os, hashlib, base64; u=os.getenv('DOZZLE_USERNAME','admin'); p=os.getenv('DOZZLE_PASSWORD','dreamlogs123'); print(f'{u}:{{SHA}}' + base64.b64encode(hashlib.sha1(p.encode()).digest()).decode())" > .htpasswd
+            fi
+
             echo "[2/5] Building only modified microservices sequentially to protect EC2 RAM..."
             SERVICES_TO_BUILD=""
             if echo "$CHANGED_FILES" | grep -q "^whatsapp-bot-service/"; then
