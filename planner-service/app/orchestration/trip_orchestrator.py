@@ -14,7 +14,7 @@ ARCHITECTURE RULES (enforced here):
 import asyncio
 import logging
 import time
-from typing import Optional
+from typing import Optional, Any
 
 from app.interfaces.hotel import HotelProvider
 from app.interfaces.route import RouteProvider
@@ -35,10 +35,34 @@ from app.schemas.request import TripRequest
 logger = logging.getLogger(__name__)
 
 
+class _BoundedTTLCache:
+    """Bounded thread-safe LRU+TTL cache backed by an OrderedDict to prevent memory leaks."""
+    def __init__(self, maxsize: int = 512, ttl: float = 900.0):
+        self._store: dict[str, tuple[float, Any]] = {}
+        self._maxsize = maxsize
+        self._ttl = ttl
+
+    def get(self, key: str) -> Optional[Any]:
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        expires_at, val = entry
+        if time.time() > expires_at:
+            del self._store[key]
+            return None
+        return val
+
+    def set(self, key: str, val: Any) -> None:
+        if len(self._store) >= self._maxsize:
+            oldest = next(iter(self._store))
+            del self._store[oldest]
+        self._store[key] = (time.time() + self._ttl, val)
+
+
 class TripOrchestrator:
     """
     Coordinates concurrent data collection from all registered providers.
-    Uses granular in-memory TTL caching so changing one parameter (e.g. date)
+    Uses bounded in-memory TTL caching so changing one parameter (e.g. date)
     doesn't invalidate cache for independent domains (e.g. attractions, route).
     """
 
@@ -58,70 +82,69 @@ class TripOrchestrator:
         self._route   = route
         self._flights = flights
         
-        # Granular TTL Caches
-        self._cache_ttl = 900  # 15 minutes
-        self._cache_tourism = {}
-        self._cache_route = {}
-        self._cache_hotels = {}
-        self._cache_buses = {}
-        self._cache_trains = {}
-        self._cache_flights = {}
+        # Bounded TTL Caches (max 512 items, 15 min TTL)
+        self._cache_tourism = _BoundedTTLCache(maxsize=512, ttl=900)
+        self._cache_route = _BoundedTTLCache(maxsize=512, ttl=900)
+        self._cache_hotels = _BoundedTTLCache(maxsize=512, ttl=900)
+        self._cache_buses = _BoundedTTLCache(maxsize=512, ttl=900)
+        self._cache_trains = _BoundedTTLCache(maxsize=512, ttl=900)
+        self._cache_flights = _BoundedTTLCache(maxsize=512, ttl=900)
 
     # ── Granular Cache Wrappers ───────────────────────────────────────────────
 
     async def _get_tourism(self, city: str, limit: int):
         key = f"{city}:{limit}"
-        now = time.time()
-        if key in self._cache_tourism and now < self._cache_tourism[key][0]:
+        cached = self._cache_tourism.get(key)
+        if cached is not None:
             logger.info("Cache HIT: Tourism")
-            return self._cache_tourism[key][1]
+            return cached
         
         data = await self._tourism.get_attractions(city, limit)
-        self._cache_tourism[key] = (now + self._cache_ttl, data)
+        self._cache_tourism.set(key, data)
         return data
 
     async def _get_route(self, origin: str, destination: str):
         key = f"{origin}:{destination}"
-        now = time.time()
-        if key in self._cache_route and now < self._cache_route[key][0]:
+        cached = self._cache_route.get(key)
+        if cached is not None:
             logger.info("Cache HIT: Route")
-            return self._cache_route[key][1]
+            return cached
             
         data = await self._route.get_route(origin, destination)
-        self._cache_route[key] = (now + self._cache_ttl, data)
+        self._cache_route.set(key, data)
         return data
 
     async def _get_hotels(self, city: str, check_in: str, check_out: str, adults: int, children: int):
         key = f"{city}:{check_in}:{check_out}:{adults}:{children}"
-        now = time.time()
-        if key in self._cache_hotels and now < self._cache_hotels[key][0]:
+        cached = self._cache_hotels.get(key)
+        if cached is not None:
             logger.info("Cache HIT: Hotels")
-            return self._cache_hotels[key][1]
+            return cached
             
         data = await self._hotels.get_hotels(city, check_in, check_out, adults, children)
-        self._cache_hotels[key] = (now + self._cache_ttl, data)
+        self._cache_hotels.set(key, data)
         return data
 
     async def _get_buses(self, source: str, destination: str, date: str):
         key = f"{source}:{destination}:{date}"
-        now = time.time()
-        if key in self._cache_buses and now < self._cache_buses[key][0]:
+        cached = self._cache_buses.get(key)
+        if cached is not None:
             logger.info("Cache HIT: Buses")
-            return self._cache_buses[key][1]
+            return cached
             
         data = await self._buses.get_buses(source, destination, date)
-        self._cache_buses[key] = (now + self._cache_ttl, data)
+        self._cache_buses.set(key, data)
         return data
 
     async def _get_trains(self, source: str, destination: str, date: str):
         key = f"{source}:{destination}:{date}"
-        now = time.time()
-        if key in self._cache_trains and now < self._cache_trains[key][0]:
+        cached = self._cache_trains.get(key)
+        if cached is not None:
             logger.info("Cache HIT: Trains")
-            return self._cache_trains[key][1]
+            return cached
             
         data = await self._trains.get_trains(source, destination, date)
-        self._cache_trains[key] = (now + self._cache_ttl, data)
+        self._cache_trains.set(key, data)
         return data
 
     async def _get_flights(
@@ -143,10 +166,10 @@ class TripOrchestrator:
             return [], None
 
         key = f"{origin}:{destination}:{outbound_date}:{travelers}:{travel_class}"
-        now = time.time()
-        if key in self._cache_flights and now < self._cache_flights[key][0]:
+        cached = self._cache_flights.get(key)
+        if cached is not None:
             logger.info("Cache HIT: Flights (%s -> %s)", origin, destination)
-            return self._cache_flights[key][1]
+            return cached
 
         # Use enhanced method if available (FlightClient v2)
         if hasattr(self._flights, "get_flights_with_resolution"):
@@ -167,7 +190,7 @@ class TripOrchestrator:
             )
             result = (flights, None)
 
-        self._cache_flights[key] = (now + self._cache_ttl, result)
+        self._cache_flights.set(key, result)
         return result
 
     # ── Main Orchestration ────────────────────────────────────────────────────

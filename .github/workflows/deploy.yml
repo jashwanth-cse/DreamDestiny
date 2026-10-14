@@ -30,7 +30,7 @@ jobs:
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
           ssh -i ~/.ssh/id_rsa \
-            -o StrictHostKeyChecking=no \
+            -o StrictHostKeyChecking=accept-new \
             -o ServerAliveInterval=15 \
             -o ServerAliveCountMax=120 \
             -o TCPKeepAlive=yes \

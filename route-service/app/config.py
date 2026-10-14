@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # CORS
     frontend_origin: str = "http://localhost:3000"
 
+    # Redis
+    redis_url: str = "redis://redis:6379/0"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

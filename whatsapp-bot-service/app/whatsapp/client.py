@@ -4,6 +4,7 @@ Sends messages, handles retries, and supports test-mode simulation.
 """
 
 import logging
+from collections import deque
 from typing import Dict, Any, List, Optional
 import httpx
 
@@ -23,7 +24,7 @@ class WhatsAppClient:
         self.access_token = access_token
         self.api_version = api_version
         self.base_url = f"https://graph.facebook.com/{api_version}/{phone_number_id}"
-        self._sent_messages_log: List[Dict[str, Any]] = []  # For tests / mock simulation
+        self._sent_messages_log = deque(maxlen=100)  # Bounded to prevent memory leak
         self._client: Optional[httpx.AsyncClient] = None
 
     async def get_client(self) -> httpx.AsyncClient:

@@ -36,18 +36,34 @@ async def lifespan(app: FastAPI):
     await planner_gateway.close()
 
 
+import os
+
+is_production = (os.getenv("APP_ENV") or settings.app_env).lower() == "production"
+
 app = FastAPI(
     title="Dream Destiny — WhatsApp Bot Service",
     description="Conversational WhatsApp interface for AI Travel Planning powered by Meta Cloud API.",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 # CORS
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "https://dreamdestiny.duckdns.org")
+
+if is_production:
+    allowed_origins = [o.strip() for o in frontend_origin.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    allowed_origins = [frontend_origin] if frontend_origin != "*" else ["*"]
+    allow_credentials = False if "*" in allowed_origins else True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -16,7 +16,9 @@ We request only distanceMeters + duration to keep costs minimal.
 """
 
 import asyncio
+import json
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -28,10 +30,66 @@ logger = logging.getLogger(__name__)
 ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 FIELD_MASK = "routes.distanceMeters,routes.duration"
 REQUEST_TIMEOUT = 15  # seconds
+CACHE_TTL_SECS = 86400 * 14  # 14 days
 
-# Travel modes we query. TRANSIT is attempted but may return no results
-# for many city pairs — handled gracefully.
 TRAVEL_MODES = ["DRIVE", "TRANSIT"]
+
+_redis_client = None
+_in_memory_cache: dict[str, tuple[float, dict]] = {}
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_redis():
+    global _redis_client
+    if settings.redis_url and _redis_client is None:
+        try:
+            import redis.asyncio as aioredis
+            _redis_client = aioredis.from_url(settings.redis_url, decode_responses=True, socket_timeout=2.0)
+        except Exception as e:
+            logger.warning("Redis not available in route-service (%s), using in-memory cache", e)
+            _redis_client = False
+    return _redis_client if _redis_client is not False else None
+
+
+async def _cache_get(key: str) -> Optional[dict]:
+    client = _get_redis()
+    if client:
+        try:
+            val = await client.get(key)
+            if val:
+                return json.loads(val)
+        except Exception as e:
+            logger.warning("Redis get error for %s: %s", key, e)
+
+    entry = _in_memory_cache.get(key)
+    if entry:
+        expires_at, data = entry
+        if time.time() < expires_at:
+            return data
+        del _in_memory_cache[key]
+    return None
+
+
+async def _cache_set(key: str, data: dict, ttl: int = CACHE_TTL_SECS):
+    client = _get_redis()
+    if client:
+        try:
+            await client.set(key, json.dumps(data), ex=ttl)
+            return
+        except Exception as e:
+            logger.warning("Redis set error for %s: %s", key, e)
+
+    if len(_in_memory_cache) >= 500:
+        oldest_k = next(iter(_in_memory_cache))
+        del _in_memory_cache[oldest_k]
+    _in_memory_cache[key] = (time.time() + ttl, data)
+
+
+async def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+    return _http_client
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +198,7 @@ async def _fetch_single_mode(
 async def fetch_routes(origin: str, destination: str) -> dict:
     """
     Fetch DRIVE and TRANSIT routes concurrently from the Google Routes API.
+    Results are cached (Redis / in-memory) to prevent repeat billing.
 
     Returns a dict with:
         distance_km : from the DRIVE route (most reliable road distance)
@@ -147,19 +206,25 @@ async def fetch_routes(origin: str, destination: str) -> dict:
 
     Raises RuntimeError on configuration or fatal API errors.
     """
+    cache_key = f"route:{origin.strip().lower()}:{destination.strip().lower()}"
+    cached = await _cache_get(cache_key)
+    if cached is not None:
+        logger.info("Cache HIT for route: %s", cache_key)
+        return cached
+
     api_key = settings.google_maps_api_key
     if not api_key:
         raise RuntimeError(
             "GOOGLE_MAPS_API_KEY is not set. Add it to the .env file."
         )
 
-    async with httpx.AsyncClient() as client:
-        results = await asyncio.gather(
-            *[
-                _fetch_single_mode(client, origin, destination, mode, api_key)
-                for mode in TRAVEL_MODES
-            ]
-        )
+    client = await _get_http_client()
+    results = await asyncio.gather(
+        *[
+            _fetch_single_mode(client, origin, destination, mode, api_key)
+            for mode in TRAVEL_MODES
+        ]
+    )
 
     # results is [drive_result, transit_result] — each may be None
     drive_result, transit_result = results
@@ -180,7 +245,12 @@ async def fetch_routes(origin: str, destination: str) -> dict:
             }
         )
 
-    return {
+    output = {
         "distance_km": distance_km,
         "modes": modes,
     }
+
+    if distance_km is not None or modes:
+        await _cache_set(cache_key, output)
+
+    return output

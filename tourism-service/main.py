@@ -5,6 +5,7 @@ Run with:
     uvicorn main:app --reload --port 8001
 """
 
+import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -19,6 +20,8 @@ from services.google_places import fetch_tourist_attractions
 # Load .env before anything else so GOOGLE_MAPS_API_KEY is available
 load_dotenv()
 
+is_production = os.getenv("APP_ENV", "").lower() == "production"
+
 app = FastAPI(
     title="Dream Destiny — Tourism Service",
     description=(
@@ -26,16 +29,28 @@ app = FastAPI(
         "using the Google Places API (New)."
     ),
     version="1.0.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 # ---------------------------------------------------------------------------
-# CORS — allow all origins for now; tighten before production
+# CORS
 # ---------------------------------------------------------------------------
+
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "https://dreamdestiny.duckdns.org")
+
+if is_production:
+    allowed_origins = [o.strip() for o in frontend_origin.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    allowed_origins = [frontend_origin] if frontend_origin != "*" else ["*"]
+    allow_credentials = False if "*" in allowed_origins else True
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

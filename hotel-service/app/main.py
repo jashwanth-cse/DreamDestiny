@@ -27,8 +27,9 @@ logging.basicConfig(
 )
 
 # ---------------------------------------------------------------------------
-# App
-# ---------------------------------------------------------------------------
+import os
+
+is_production = os.getenv("APP_ENV", "").lower() == "production"
 
 app = FastAPI(
     title="Dream Destiny — Hotel Service",
@@ -37,16 +38,28 @@ app = FastAPI(
         "using the SerpApi Google Hotels engine."
     ),
     version="1.0.0",
+    docs_url=None if is_production else "/docs",
+    redoc_url=None if is_production else "/redoc",
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
 
+frontend_origin = os.getenv("FRONTEND_ORIGIN", settings.frontend_origin)
+
+if is_production:
+    allowed_origins = [o.strip() for o in frontend_origin.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    allowed_origins = [frontend_origin] if frontend_origin != "*" else ["*"]
+    allow_credentials = False if "*" in allowed_origins else True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

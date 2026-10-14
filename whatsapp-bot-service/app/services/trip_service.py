@@ -58,12 +58,27 @@ class TripService:
                     build_text_message(wa_id, "🌴 *High Traffic Alert!* 🌴\nWe are currently experiencing a high volume of travel requests. Your itinerary is safely in the queue and will be generated shortly. Thanks for your patience! ✨")
                 )
             
-            # Wait for a slot
-            while True:
-                acquired = await redis_store.acquire_generation_slot(limit=2)
-                if acquired:
+            # Wait for a slot with timeout protection (max 60 seconds)
+            max_attempts = 20
+            slot_acquired = False
+            for _ in range(max_attempts):
+                if await redis_store.acquire_generation_slot(limit=2):
+                    slot_acquired = True
                     break
                 await asyncio.sleep(3)
+
+            if not slot_acquired:
+                logger.warning("Generation queue timeout for user %s after %ds", wa_id, max_attempts * 3)
+                await whatsapp_client.send_message_payload(
+                    build_text_message(
+                        wa_id,
+                        "⏳ *Traffic is unusually high right now!* 🌴\n"
+                        "We couldn't allocate a generation slot in time. Please reply *'Plan trip'* to try again in a moment."
+                    )
+                )
+                session.state = ConversationState.START
+                await redis_store.save_session(session)
+                return False
 
             try:
                 # 1. Call Backend Planner Gateway

@@ -14,6 +14,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/sh appuser && \
+    chown -R appuser:appgroup /app
+
+USER appuser
+
 EXPOSE 8007
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=5s \

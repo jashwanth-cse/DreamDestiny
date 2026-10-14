@@ -1,12 +1,8 @@
-"""
-Meta WhatsApp Cloud API Webhook Endpoints.
-GET /webhook — Verification handshake
-POST /webhook — Real-time event receiver
-"""
-
+import hmac
+import hashlib
 import logging
 from typing import Optional
-from fastapi import APIRouter, Request, Response, BackgroundTasks, Query, status
+from fastapi import APIRouter, Request, Response, BackgroundTasks, Query, HTTPException, status
 
 from app.schemas.webhook import WebhookPayload, NormalizedEvent
 from app.conversation.manager import conversation_manager
@@ -39,13 +35,32 @@ async def verify_webhook(
 @router.post("/webhook")
 @router.post("/webhooks/whatsapp")
 async def receive_webhook(
+    request: Request,
     payload: WebhookPayload,
     background_tasks: BackgroundTasks,
 ):
     """
     Receives incoming WhatsApp events (messages, button clicks, status updates).
+    Validates X-Hub-Signature-256 header if whatsapp_app_secret is configured.
     Quickly returns HTTP 200 OK to acknowledge Meta, dispatching processing in background.
     """
+    # ── Meta HMAC-SHA256 Signature Verification ─────────────────────────────
+    if settings.whatsapp_app_secret and settings.app_env != "test":
+        signature = request.headers.get("X-Hub-Signature-256", "")
+        if not signature:
+            logger.warning("Rejecting WhatsApp webhook: missing X-Hub-Signature-256 header")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing signature")
+
+        body_bytes = await request.body()
+        expected_sig = "sha256=" + hmac.new(
+            settings.whatsapp_app_secret.encode("utf-8"),
+            body_bytes,
+            hashlib.sha256
+        ).hexdigest()
+
+        if not hmac.compare_digest(expected_sig, signature):
+            logger.warning("Rejecting WhatsApp webhook: invalid HMAC signature")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
     for entry in payload.entry:
         for change in entry.changes:
             val = change.value

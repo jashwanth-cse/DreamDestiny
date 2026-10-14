@@ -134,7 +134,7 @@ class RedisStore:
                     else:
                         self._locks.discard(lock_key)
                 except Exception as exc:
-                    logger.warning("Failed to release lock for %s: %exc", wa_id, exc)
+                    logger.warning("Failed to release lock for %s: %s", wa_id, exc)
 
     async def is_message_processed(self, message_id: str) -> bool:
         """Check if WhatsApp message ID was already processed (Idempotency)."""

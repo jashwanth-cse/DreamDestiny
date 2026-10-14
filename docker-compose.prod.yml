@@ -69,7 +69,10 @@ services:
     container_name: dream-destiny-tourism
     restart: always
     environment:
+      - APP_ENV=production
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - REDIS_URL=redis://redis:6379/0
     networks:
       - dream-destiny-prod-net
     deploy:
@@ -91,10 +94,11 @@ services:
     container_name: dream-destiny-hotel
     restart: always
     environment:
+      - APP_ENV=production
       - SERPAPI_API_KEY=${SERPAPI_API_KEY}
       - HOTEL_CACHE_TTL_HOURS=${HOTEL_CACHE_TTL_HOURS:-24}
       - HOTEL_DB_PATH=/app/data/hotel_cache.db
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-*}
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
     volumes:
       - hotel-cache-data:/app/data
     networks:
@@ -118,8 +122,10 @@ services:
     container_name: dream-destiny-route
     restart: always
     environment:
+      - APP_ENV=production
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-*}
+      - REDIS_URL=redis://redis:6379/0
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
     networks:
       - dream-destiny-prod-net
     deploy:
@@ -140,6 +146,9 @@ services:
       dockerfile: Dockerfile
     container_name: dream-destiny-bus
     restart: always
+    environment:
+      - APP_ENV=production
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
     networks:
       - dream-destiny-prod-net
     deploy:
@@ -163,6 +172,8 @@ services:
     volumes:
       - ./data:/app/data:ro
     environment:
+      - APP_ENV=production
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
       - RAILWAY_STATIONS_DATA_PATH=/app/data/railway_stations.json
       - DIVISION_HUBS_DATA_PATH=/app/data/division_hubs.json
       - STATE_CAPITALS_DATA_PATH=/app/data/state_capitals.json
@@ -191,10 +202,11 @@ services:
       - 8.8.8.8
       - 8.8.4.4
     environment:
+      - APP_ENV=production
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
       - SERPAPI_API_KEY=${SERPAPI_API_KEY}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
       - HTTP_TIMEOUT=${HTTP_TIMEOUT:-30.0}
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-*}
       - MAX_AIRPORT_RADIUS_KM=${MAX_AIRPORT_RADIUS_KM:-500}
       - GEOCODING_CACHE_TTL=${GEOCODING_CACHE_TTL:-86400}
     networks:
@@ -218,6 +230,8 @@ services:
     container_name: dream-destiny-planner
     restart: always
     environment:
+      - APP_ENV=production
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
       - TOURISM_SERVICE_URL=http://tourism-service:8001
       - HOTEL_SERVICE_URL=http://hotel-service:8002
       - ROUTE_SERVICE_URL=http://route-service:8003
@@ -228,7 +242,6 @@ services:
       - BEDROCK_API_KEY=${BEDROCK_API_KEY}
       - HTTP_TIMEOUT=${HTTP_TIMEOUT:-20.0}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-60.0}
-      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-*}
     depends_on:
       tourism-service:
         condition: service_healthy
@@ -295,9 +308,11 @@ services:
     restart: always
     environment:
       - APP_ENV=production
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://dreamdestiny.duckdns.org}
       - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
       - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
       - WHATSAPP_VERIFY_TOKEN=${WHATSAPP_VERIFY_TOKEN:-dream_destiny_verify_token}
+      - WHATSAPP_APP_SECRET=${WHATSAPP_APP_SECRET:-}
       - WHATSAPP_API_VERSION=${WHATSAPP_API_VERSION:-v20.0}
       - REDIS_URL=redis://redis:6379/0
       - PLANNER_GATEWAY_URL=http://planner-service:8000
@@ -324,18 +339,17 @@ services:
       retries: 3
       start_period: 5s
 
-  # 📈 12. Dozzle Log Viewer 📈
+  # 📈 12. Dozzle Log Viewer (Secured via NGINX HTTPS Reverse Proxy) 📈
   dozzle:
     image: amir20/dozzle:latest
     container_name: dream-destiny-dozzle
     restart: unless-stopped
-    ports:
-      - "9999:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DOZZLE_LEVEL=info
       - DOZZLE_TAILSIZE=300
+      - DOZZLE_BASE=/logs
       - DOZZLE_USERNAME=${DOZZLE_USERNAME:-admin}
       - DOZZLE_PASSWORD=${DOZZLE_PASSWORD:-dreamlogs123}
     networks:
