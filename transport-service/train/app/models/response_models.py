@@ -85,3 +85,13 @@ class TrainSearchResponse(BaseModel):
 class ErrorResponse(BaseModel):
     success: bool
     message: str
+
+
+# ---------------------------------------------------------
+# Availability Models
+# ---------------------------------------------------------
+from app.models.availability_models import (
+    AvailabilityRequest,
+    AvailabilityData,
+    AvailabilityResponse,
+)

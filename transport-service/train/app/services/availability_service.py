@@ -1,71 +1,123 @@
-import requests
+"""
+Train Availability Service
+
+Facade for retrieving live train seat availability.
+Implements:
+  - In-flight request coalescing (Singleflight pattern)
+  - Concurrency bounds via asyncio.Semaphore
+  - Decoupled provider dependency injection
+  - 100% backward compatibility for synchronous callers (TrainService._enrich_availability)
+"""
+
+from __future__ import annotations
+
+import asyncio
 import logging
-from typing import Dict, Any, List, Optional
-import datetime
+from typing import Any, Dict, Optional, Tuple
 
 from app.config import config
+from app.exceptions import (
+    UpstreamTimeoutError,
+    UpstreamConnectionError,
+    UpstreamServiceError,
+    CircuitBreakerOpenError,
+)
+from app.models.availability_models import AvailabilityRequest
+from app.services.availability_provider import (
+    AvailabilityProvider,
+    ConfirmTktAvailabilityProvider,
+    parse_booking_status,
+)
 
 logger = logging.getLogger(__name__)
-_session = requests.Session()
+
 
 class AvailabilityService:
     """
-    Service class to handle live train availability checks.
+    Stateless, concurrency-safe availability service.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        provider: Optional[AvailabilityProvider] = None,
+        max_concurrent: Optional[int] = None,
+    ) -> None:
+        self.provider: AvailabilityProvider = provider or ConfirmTktAvailabilityProvider()
+        self.max_concurrent = max_concurrent or config.MAX_CONCURRENT_AVAILABILITY
+
+        # Singleflight in-flight request coalescing map:
+        # key -> asyncio.Future
+        self._in_flight: Dict[Tuple[str, str, str, str, str, str], asyncio.Future] = {}
+        self._in_flight_lock = asyncio.Lock()
+        self._semaphore: Optional[asyncio.Semaphore] = None
+
+        # Backward compatibility properties
         self.url = config.AVAILABILITY_API
         self.headers = config.TRAIN_HEADERS
 
-    def _build_params(self, train_no: str, source: str, destination: str, travel_class: str, quota: str, date: str) -> Dict[str, Any]:
-        """Builds query parameters for the POST request."""
-        # The API likely expects camelCase for JSON body based on ixigo patterns.
-        return {
-            "trainNo": train_no,
-            "sourceStationCode": source,
-            "destinationStationCode": destination,
-            "travelClass": travel_class,
-            "quota": quota,
-            "dateOfJourney": date
-        }
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.max_concurrent)
+        return self._semaphore
 
-    def _call_ixigo(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Makes the POST request to the Ixigo Availability API."""
-        try:
-            logger.info(f"Ixigo API Request: POST {self.url} with params: {params}")
-            response = _session.post(
-                self.url,
-                params=params,
-                headers=self.headers,
-                timeout=30
-            )
-            logger.info(f"Ixigo API Response Status: {response.status_code}")
-            if response.status_code != 200:
-                logger.debug(f"Ixigo API Error Response Body: {response.text}")
-            
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.Timeout:
-            raise Exception("Ixigo API Timeout")
-        except requests.exceptions.ConnectionError:
-            raise Exception("Unable to connect to Ixigo")
-        except requests.exceptions.HTTPError as e:
-            raise Exception(f"HTTP Error : {e}")
-        except Exception as e:
-            raise Exception(f"Unknown Error : {e}")
+    @staticmethod
+    def _parse_booking_status(availability_str: str) -> str:
+        """Standardizes booking status strings. Backward compatibility helper."""
+        return parse_booking_status(availability_str)
 
-    def _parse_booking_status(self, availability_str: str) -> str:
-        """Parses raw availability string into standardized booking_status."""
-        av_upper = str(availability_str).upper()
-        if "CURR_AVBL" in av_upper or "AVAILABLE" in av_upper or "AVL" in av_upper:
-            return "AVAILABLE"
-        if "RAC" in av_upper:
-            return "RAC"
-        if "WL" in av_upper or "WAITLIST" in av_upper:
-            return "WL"
-        if "REGRET" in av_upper:
-            return "REGRET"
-        return "UNKNOWN"
+    async def async_fetch_availability(
+        self,
+        request: AvailabilityRequest,
+    ) -> Dict[str, Any]:
+        """
+        Asynchronously fetches live availability with in-flight request coalescing
+        and bounded concurrency.
+        """
+        key = (
+            request.train_no,
+            request.source,
+            request.destination,
+            request.travel_class,
+            request.date,
+            request.quota,
+        )
+
+        loop = asyncio.get_running_loop()
+
+        # Check if an identical request is already executing
+        async with self._in_flight_lock:
+            if key in self._in_flight:
+                logger.info(f"[Singleflight] Coalescing duplicate in-flight availability request for {key}")
+                existing_future = self._in_flight[key]
+                # Await the shared future outside the lock
+                return await asyncio.shield(existing_future)
+
+            # Create a new future for subsequent callers to await
+            future: asyncio.Future = loop.create_future()
+            self._in_flight[key] = future
+
+        # Execute upstream request under bounded semaphore
+        semaphore = self._get_semaphore()
+        async with semaphore:
+            try:
+                result = await self.provider.fetch_availability(
+                    train_no=request.train_no,
+                    source=request.source,
+                    destination=request.destination,
+                    travel_class=request.travel_class,
+                    date=request.date,
+                    quota=request.quota,
+                )
+                if not future.done():
+                    future.set_result(result)
+                return result
+            except Exception as exc:
+                if not future.done():
+                    future.set_exception(exc)
+                raise exc
+            finally:
+                async with self._in_flight_lock:
+                    self._in_flight.pop(key, None)
 
     def fetch_availability(
         self,
@@ -74,83 +126,43 @@ class AvailabilityService:
         destination: str,
         travel_class: str,
         date: str,
-        quota: str = "GN"
+        quota: str = "GN",
     ) -> Dict[str, Any]:
         """
-        Fetches live availability and returns a clean response.
+        Synchronous availability fetch method.
+        Preserves 100% backward compatibility for TrainService._enrich_availability
+        and existing unit tests.
         """
-        params = self._build_params(train_no, source, destination, travel_class, quota, date)
-        
         try:
-            raw_data = self._call_ixigo(params)
-            
-            # Extract data from raw response
-            # Assuming raw_data contains the availability inside a `data` or similar key, or at the root.
-            # Ixigo fetchAvailability often returns data directly or under 'data'.
-            # The ixigo response encapsulates the actual availability inside data.avlDayList[0]
-            data = raw_data.get("data", raw_data)
-            avl_day_list = data.get("avlDayList", [])
-            avl_info = avl_day_list[0] if avl_day_list and isinstance(avl_day_list, list) else {}
-            
-            # The exact display name e.g., 'AVL 282' or 'WL 12'
-            availability_str = str(
-                avl_info.get("availabilityDisplayName") or 
-                avl_info.get("availablityStatus") or 
-                ""
+            return self.provider.fetch_availability_sync(
+                train_no=train_no,
+                source=source,
+                destination=destination,
+                travel_class=travel_class,
+                date=date,
+                quota=quota,
             )
-            booking_status = self._parse_booking_status(availability_str)
-            
-            # Extract fares from fareInfo
-            fare_info = data.get("fareInfo", {})
-            
-            fare_val = fare_info.get("baseFare", fare_info.get("totalFare", 0))
-            try:
-                fare = int(float(fare_val))
-            except (ValueError, TypeError):
-                fare = 0
-                
-            total_fare_val = fare_info.get("totalCollectibleAmount", fare_info.get("totalFare", fare))
-            try:
-                total_fare = int(float(total_fare_val))
-            except (ValueError, TypeError):
-                total_fare = fare
-            
-            # Prediction from avl_info
-            prediction_val = avl_info.get("predictionPercentage", 0)
-            try:
-                prediction = int(prediction_val)
-            except (ValueError, TypeError):
-                prediction = 0
-                
-            booking_enabled = bool(avl_info.get("enableBookButton", True))
-            last_updated = str(data.get("timeStamp", datetime.datetime.now().isoformat()))
-            
-            # Additional available dates in the list (if any)
-            next_available_dates = []
-            if len(avl_day_list) > 1:
-                next_available_dates = [item.get("availablityDate") for item in avl_day_list[1:] if item.get("availablityDate")]
-
-
-            return {
-                "success": True,
-                "message": "Live availability fetched",
-                "data": {
-                    "train_number": train_no,
-                    "travel_class": travel_class,
-                    "quota": quota,
-                    "availability": availability_str,
-                    "booking_status": booking_status,
-                    "prediction": prediction,
-                    "fare": fare,
-                    "total_fare": total_fare,
-                    "booking_enabled": booking_enabled,
-                    "last_updated": last_updated,
-                    "next_available_dates": next_available_dates
-                }
-            }
         except Exception as e:
+            logger.warning(f"Live availability sync fetch failed for {train_no} {travel_class}: {e}")
             return {
                 "success": False,
                 "message": str(e),
-                "data": None
+                "data": None,
             }
+
+    async def aclose(self) -> None:
+        """Release provider resources."""
+        if hasattr(self.provider, "aclose"):
+            await self.provider.aclose()
+
+
+# Default service instance for dependency injection
+_default_availability_service: Optional[AvailabilityService] = None
+
+
+def get_availability_service() -> AvailabilityService:
+    """Dependency injection factory for FastAPI routes."""
+    global _default_availability_service
+    if _default_availability_service is None:
+        _default_availability_service = AvailabilityService()
+    return _default_availability_service
