@@ -51,6 +51,10 @@ class AvailabilityService:
         self._in_flight_lock = asyncio.Lock()
         self._semaphore: Optional[asyncio.Semaphore] = None
 
+        # In-memory TTL snapshot cache: key -> (timestamp, result_dict)
+        self._cache: Dict[Tuple[str, str, str, str, str, str], Tuple[float, Dict[str, Any]]] = {}
+        self.cache_ttl: int = config.AVAILABILITY_CACHE_TTL
+
         # Backward compatibility properties
         self.url = config.AVAILABILITY_API
         self.headers = config.TRAIN_HEADERS
@@ -70,9 +74,11 @@ class AvailabilityService:
         request: AvailabilityRequest,
     ) -> Dict[str, Any]:
         """
-        Asynchronously fetches live availability with in-flight request coalescing
-        and bounded concurrency.
+        Asynchronously fetches live availability with in-memory TTL cache,
+        in-flight request coalescing, and bounded concurrency.
         """
+        import time
+
         key = (
             request.train_no,
             request.source,
@@ -82,21 +88,26 @@ class AvailabilityService:
             request.quota,
         )
 
+        # 1. Check in-memory snapshot cache
+        if self.cache_ttl > 0 and key in self._cache:
+            cached_at, cached_result = self._cache[key]
+            if time.monotonic() - cached_at < self.cache_ttl:
+                return cached_result
+
         loop = asyncio.get_running_loop()
 
-        # Check if an identical request is already executing
+        # 2. Check if an identical request is already in-flight (Singleflight)
         async with self._in_flight_lock:
             if key in self._in_flight:
                 logger.info(f"[Singleflight] Coalescing duplicate in-flight availability request for {key}")
                 existing_future = self._in_flight[key]
-                # Await the shared future outside the lock
                 return await asyncio.shield(existing_future)
 
             # Create a new future for subsequent callers to await
             future: asyncio.Future = loop.create_future()
             self._in_flight[key] = future
 
-        # Execute upstream request under bounded semaphore
+        # 3. Execute upstream request under bounded semaphore
         semaphore = self._get_semaphore()
         async with semaphore:
             try:
@@ -110,6 +121,13 @@ class AvailabilityService:
                 )
                 if not future.done():
                     future.set_result(result)
+
+                # Store in TTL snapshot cache on success
+                if self.cache_ttl > 0 and result.get("success"):
+                    if len(self._cache) > 2000:
+                        self._cache.clear()
+                    self._cache[key] = (time.monotonic(), result)
+
                 return result
             except Exception as exc:
                 if not future.done():

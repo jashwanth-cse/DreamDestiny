@@ -277,6 +277,7 @@ class ConfirmTktAvailabilityProvider:
             except (httpx.TimeoutException, asyncio.TimeoutError) as exc:
                 logger.warning(f"ConfirmTkt API timeout on attempt {attempt+1}: {exc}")
                 last_exc = UpstreamTimeoutError("ConfirmTkt API request timed out")
+                break
             except (httpx.ConnectError, httpx.NetworkError) as exc:
                 logger.warning(f"ConfirmTkt API connection error on attempt {attempt+1}: {exc}")
                 last_exc = UpstreamConnectionError("Unable to connect to ConfirmTkt API")

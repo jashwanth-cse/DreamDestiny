@@ -45,24 +45,27 @@ class IxigoConfig:
     # ----------------------------
     # Timeouts & Pooling (in seconds)
     # ----------------------------
-    CONNECT_TIMEOUT: float = float(os.getenv("UPSTREAM_CONNECT_TIMEOUT", "5.0"))
-    READ_TIMEOUT: float = float(os.getenv("UPSTREAM_READ_TIMEOUT", "15.0"))
-    WRITE_TIMEOUT: float = float(os.getenv("UPSTREAM_WRITE_TIMEOUT", "5.0"))
-    POOL_TIMEOUT: float = float(os.getenv("UPSTREAM_POOL_TIMEOUT", "5.0"))
+    CONNECT_TIMEOUT: float = float(os.getenv("UPSTREAM_CONNECT_TIMEOUT", "4.0"))
+    READ_TIMEOUT: float = float(os.getenv("UPSTREAM_READ_TIMEOUT", "8.0"))
+    WRITE_TIMEOUT: float = float(os.getenv("UPSTREAM_WRITE_TIMEOUT", "4.0"))
+    POOL_TIMEOUT: float = float(os.getenv("UPSTREAM_POOL_TIMEOUT", "4.0"))
 
-    MAX_KEEPALIVE_CONNECTIONS: int = int(os.getenv("MAX_KEEPALIVE_CONNECTIONS", "20"))
-    MAX_CONNECTIONS: int = int(os.getenv("MAX_CONNECTIONS", "50"))
+    MAX_KEEPALIVE_CONNECTIONS: int = int(os.getenv("MAX_KEEPALIVE_CONNECTIONS", "30"))
+    MAX_CONNECTIONS: int = int(os.getenv("MAX_CONNECTIONS", "100"))
 
     # ----------------------------
     # Resilience & Rate Bounds
     # ----------------------------
-    MAX_RETRIES: int = int(os.getenv("AVAILABILITY_MAX_RETRIES", "2"))
-    BACKOFF_FACTOR: float = float(os.getenv("AVAILABILITY_BACKOFF_FACTOR", "0.3"))
+    MAX_RETRIES: int = int(os.getenv("AVAILABILITY_MAX_RETRIES", "1"))
+    BACKOFF_FACTOR: float = float(os.getenv("AVAILABILITY_BACKOFF_FACTOR", "0.2"))
     CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5"))
     CIRCUIT_BREAKER_RESET_TIMEOUT: float = float(os.getenv("CIRCUIT_BREAKER_RESET_TIMEOUT", "15.0"))
 
     # Bounded concurrency across simultaneous availability requests
-    MAX_CONCURRENT_AVAILABILITY: int = int(os.getenv("MAX_CONCURRENT_AVAILABILITY", "15"))
+    MAX_CONCURRENT_AVAILABILITY: int = int(os.getenv("MAX_CONCURRENT_AVAILABILITY", "50"))
+
+    # In-memory snapshot cache TTL (seconds) for read-only availability
+    AVAILABILITY_CACHE_TTL: int = int(os.getenv("AVAILABILITY_CACHE_TTL", "60"))
 
     # ----------------------------
     # Dynamic Headers Methods
