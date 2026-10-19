@@ -45,16 +45,20 @@ async def lifespan(app: FastAPI):
     logger.info("Transport Service shutdown complete.")
 
 
-is_production = os.getenv("APP_ENV", "").lower() == "production"
+# Environment & Production Detection
+is_cloud_run = bool(os.getenv("K_SERVICE"))
+app_env = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "production" if is_cloud_run else "development")).lower()
+is_production = app_env in ("production", "prod") or is_cloud_run
+enable_docs = os.getenv("ENABLE_DOCS", "false" if is_production else "true").lower() == "true"
 
 app = FastAPI(
     title="Transport Service API",
     description="Production-ready FastAPI microservice for searching trains, stations, and live seat availability.",
     version="2.0.0",
     lifespan=lifespan,
-    docs_url=None if is_production else "/docs",
-    redoc_url=None if is_production else "/redoc",
-    openapi_url=None if is_production else "/openapi.json",
+    docs_url="/docs" if enable_docs else None,
+    redoc_url="/redoc" if enable_docs else None,
+    openapi_url="/openapi.json" if enable_docs else None,
 )
 
 # CORS Middleware
