@@ -1,4 +1,6 @@
+import os
 import time
+import uuid
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -8,29 +10,47 @@ from pydantic import ValidationError
 from fastapi.exceptions import RequestValidationError
 
 from app.routes import stations, trains, availability
-from app.exceptions import StationNotFoundError, InvalidRequestError
+from app.exceptions import (
+    StationNotFoundError,
+    InvalidRequestError,
+    UpstreamTimeoutError,
+    UpstreamConnectionError,
+    UpstreamServiceError,
+    CircuitBreakerOpenError,
+)
+from app.services.availability_service import get_availability_service
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Warm the local railway station resolver once at startup."""
+    """
+    Service lifespan manager:
+    - Warms the local railway station dataset index once at startup
+    - Gracefully closes HTTP client connection pools on shutdown
+    """
     from app.services.station_service import _ensure_resolver_loaded
+    logger.info("Initializing station resolver dataset index...")
     _ensure_resolver_loaded()
+    logger.info("Station resolver dataset loaded.")
     yield
-    # (no shutdown cleanup needed for the resolver)
+    logger.info("Shutting down Transport Service, releasing HTTP resources...")
+    avl_service = get_availability_service()
+    await avl_service.aclose()
+    logger.info("Transport Service shutdown complete.")
 
-
-import os
 
 is_production = os.getenv("APP_ENV", "").lower() == "production"
 
 app = FastAPI(
     title="Transport Service API",
-    description="Production-ready FastAPI microservice for searching trains and stations.",
-    version="1.0.0",
+    description="Production-ready FastAPI microservice for searching trains, stations, and live seat availability.",
+    version="2.0.0",
     lifespan=lifespan,
     docs_url=None if is_production else "/docs",
     redoc_url=None if is_production else "/redoc",
@@ -55,19 +75,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Timing and Logging Middleware
+
+# Timing, Correlation ID, and Structured Logging Middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    logger.info(f"Incoming Request: {request.method} {request.url}")
-    
+    correlation_id = (
+        request.headers.get("X-Correlation-ID")
+        or request.headers.get("X-Request-ID")
+        or uuid.uuid4().hex[:12]
+    )
+    request.state.correlation_id = correlation_id
+
+    start_time = time.monotonic()
+    logger.info(f"[corr_id={correlation_id}] Incoming: {request.method} {request.url.path}")
+
     response = await call_next(request)
-    
-    process_time = (time.time() - start_time) * 1000
-    formatted_process_time = '{0:.2f}'.format(process_time)
-    logger.info(f"Completed Request: {request.method} {request.url} - Status: {response.status_code} - Time: {formatted_process_time}ms")
-    
+
+    process_time_ms = (time.monotonic() - start_time) * 1000
+    response.headers["X-Correlation-ID"] = correlation_id
+    logger.info(
+        f"[corr_id={correlation_id}] Completed: {request.method} {request.url.path} "
+        f"- Status: {response.status_code} - Time: {process_time_ms:.2f}ms"
+    )
+
     return response
+
 
 # Exception Handlers
 @app.exception_handler(StationNotFoundError)
@@ -77,6 +109,7 @@ async def station_not_found_exception_handler(request: Request, exc: StationNotF
         content={"success": False, "message": "Station not found"}
     )
 
+
 @app.exception_handler(InvalidRequestError)
 async def invalid_request_exception_handler(request: Request, exc: InvalidRequestError):
     return JSONResponse(
@@ -84,27 +117,74 @@ async def invalid_request_exception_handler(request: Request, exc: InvalidReques
         content={"success": False, "message": "Invalid request"}
     )
 
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=400,
-        content={"success": False, "message": "Invalid request"}
+        content={"success": False, "message": "Invalid request parameters"}
     )
+
+
+@app.exception_handler(UpstreamTimeoutError)
+async def upstream_timeout_handler(request: Request, exc: UpstreamTimeoutError):
+    return JSONResponse(
+        status_code=504,
+        content={"success": False, "message": "Upstream availability provider timed out."}
+    )
+
+
+@app.exception_handler(CircuitBreakerOpenError)
+async def circuit_breaker_handler(request: Request, exc: CircuitBreakerOpenError):
+    return JSONResponse(
+        status_code=503,
+        content={"success": False, "message": "Availability service is temporarily unavailable due to upstream outage."}
+    )
+
+
+@app.exception_handler(UpstreamConnectionError)
+@app.exception_handler(UpstreamServiceError)
+async def upstream_error_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=502,
+        content={"success": False, "message": "Upstream availability service error."}
+    )
+
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled Exception: {exc}")
+    corr_id = getattr(request.state, "correlation_id", "unknown")
+    logger.error(f"[corr_id={corr_id}] Unhandled Exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content={"success": False, "message": "Internal server error"}
     )
+
 
 # Routers
 app.include_router(stations.router, prefix="/api/v1/stations", tags=["Stations"])
 app.include_router(trains.router, prefix="/api/v1/trains", tags=["Trains"])
 app.include_router(availability.router, prefix="/api/v1/trains/availability", tags=["Availability"])
 
-# Health Check
-@app.get("/health")
+
+# Health & Readiness Probes
+@app.get("/health", summary="Liveness Probe", tags=["System"])
 def health_check():
-    return {"status": "healthy"}
+    """
+    Sub-millisecond liveness probe with zero external dependencies.
+    """
+    return {"status": "healthy", "service": "dream-destiny-train", "version": "2.0.0"}
+
+
+@app.get("/ready", summary="Readiness Probe", tags=["System"])
+def readiness_check():
+    """
+    Readiness probe verifying that local dataset index is loaded and operational.
+    """
+    from app.services.station_service import _resolver, _ensure_resolver_loaded
+    _ensure_resolver_loaded()
+    is_ready = getattr(_resolver, "_loaded", False)
+    if not is_ready:
+        return JSONResponse(status_code=503, content={"status": "not_ready", "reason": "Station dataset loading"})
+    total = getattr(_resolver, "total_stations", 0)
+    return {"status": "ready", "service": "dream-destiny-train", "total_stations": total}
