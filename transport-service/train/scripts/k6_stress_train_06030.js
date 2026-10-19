@@ -104,7 +104,8 @@ export default function () {
     timeout: '15s',
   };
 
-  const res = http.post('http://127.0.0.1:8005/api/v1/trains/availability', payload, params);
+  const baseUrl = __ENV.TARGET_URL || 'https://dreamdestiny.cloud.run';
+  const res = http.post(`${baseUrl}/api/v1/trains/availability`, payload, params);
 
   const isSuccess = check(res, {
     'status is 200': (r) => r.status === 200,
