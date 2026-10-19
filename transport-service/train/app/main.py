@@ -124,9 +124,23 @@ async def invalid_request_exception_handler(request: Request, exc: InvalidReques
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    detail = "Invalid request parameters"
+    if errors:
+        first_err = errors[0]
+        msg = first_err.get("msg", "")
+        if msg.startswith("Value error, "):
+            msg = msg[len("Value error, "):]
+        loc = " -> ".join(str(l) for l in first_err.get("loc", []) if l != "body")
+        detail = f"{loc}: {msg}" if loc else msg
+
     return JSONResponse(
         status_code=400,
-        content={"success": False, "message": "Invalid request parameters"}
+        content={
+            "success": False,
+            "message": detail,
+            "errors": [e.get("msg", "") for e in errors],
+        }
     )
 
 
