@@ -238,7 +238,7 @@ async def execute_benchmark(
 
 async def main():
     parser = argparse.ArgumentParser(description="Train 06030 Multi-Station Concurrency & Delay Benchmark")
-    parser.add_argument("--url", default="https://dreamdestiny.cloud.run", help="Microservice base URL")
+    parser.add_argument("--url", default="http://127.0.0.1:8005", help="Microservice base URL (e.g. http://127.0.0.1:8005)")
     parser.add_argument("--requests", type=int, default=100, help="Total queries (simulate up to 10,000)")
     parser.add_argument("--concurrency", type=int, default=20, help="Concurrent workers (users)")
     parser.add_argument(
