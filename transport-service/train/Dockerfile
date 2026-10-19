@@ -3,14 +3,11 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install dependencies
-COPY transport-service/train/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy service source code
-COPY transport-service/train/ .
-
-# Copy the dataset into the container's /app/data folder
-COPY data/railway_stations.json /app/data/railway_stations.json
+# Copy service source code and data
+COPY . .
 
 ENV RAILWAY_STATIONS_DATA_PATH=/app/data/railway_stations.json
 ENV PORT=8005
