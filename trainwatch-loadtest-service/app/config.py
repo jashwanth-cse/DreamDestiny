@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 10.0
     run_deadline_seconds: float = 120.0
 
+    # IRCTC Blackout Windows (Maintenance & Tatkal rate-limit protection)
+    enforce_blackout_windows: bool = True
+    timezone: str = "Asia/Kolkata"
+
     # Networking / Server
     port: int = 8080
     log_level: str = "INFO"

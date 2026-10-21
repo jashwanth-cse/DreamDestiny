@@ -34,6 +34,7 @@ from app.models.schemas import (
 )
 from app.services.load_generator import get_load_generator, LoadGeneratorService
 from app.services.firestore_storage import get_firestore_storage, FirestoreStorageService
+from app.services.blackout_guard import check_blackout_window
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -146,6 +147,22 @@ async def run_load_test(
 ):
     """Triggers a bounded load-test run and saves results to Firestore."""
     global _active_run_id
+
+    # 0. Check IRCTC operational blackout windows (Maintenance & Tatkal hours)
+    is_blackout, blackout_reason = check_blackout_window()
+    if is_blackout:
+        logger.warning(f"[BLACKOUT GUARD] Load test skipped: {blackout_reason}")
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "skipped": True,
+                "reason": blackout_reason,
+                "message": (
+                    "Load test safely skipped to respect IRCTC maintenance / "
+                    "Tatkal rate-limit restrictions."
+                ),
+            },
+        )
 
     # Fallback to default request if empty body posted
     run_req = request or RunRequest(

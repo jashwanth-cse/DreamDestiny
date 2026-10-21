@@ -33,11 +33,16 @@ The **TrainWatch Load-Test Service** continuously verifies the performance, stab
 
 ### Key Capabilities
 1. **Concurrent User Simulation:** Dispatches concurrent async requests across combinations of station pairs (23 stations, 253 forward pairs), upcoming valid Sundays, and classes (`SL`, `3A`, `2A`).
-2. **Deduplication Verification:** Proves that identical canonical keys (`{trainNo}:{src}:{dst}:{date}:{class}:{quota}`) share upstream executions and benefit from in-flight singleflight coalescing and snapshot caching.
-3. **Overlapping Run Protection:** In-process concurrency lock rejects concurrent runs with `409 Conflict`.
-4. **Runaway Prevention & Safety Guardrails:** Strict server-side caps on concurrency (`max: 50`) and requests (`max: 200`) prevent accidental billing spikes or upstream flooding.
-5. **Firestore Telemetry:** Automatically records test summaries, latency percentiles (min, avg, p50, p90, p95, p99, max), status codes, and deduplication efficiency ratios to collection `trainwatch_load_test_runs`.
-6. **Zero Impact on Production Service:** Interacts strictly with the public API endpoint via standard HTTPS POST requests without altering production internals.
+2. **IRCTC Blackout Window Protection:** Automatically suppresses all test traffic during high-risk IRCTC operational windows:
+   * **IRCTC Server Maintenance:** `11:40 PM – 12:25 AM IST` (23:40 – 00:25)
+   * **AC Tatkal Booking Opening:** `09:45 AM – 10:15 AM IST` (Extreme rate limits)
+   * **Non-AC / Sleeper Tatkal Window:** `10:45 AM – 11:15 AM IST` (Extreme rate limits)
+   * *Returns HTTP 200 with `{"skipped": true}` so Cloud Scheduler records clean executions without retrying.*
+3. **Deduplication Verification:** Proves that identical canonical keys (`{trainNo}:{src}:{dst}:{date}:{class}:{quota}`) share upstream executions and benefit from in-flight singleflight coalescing and snapshot caching.
+4. **Overlapping Run Protection:** In-process concurrency lock rejects concurrent runs with `409 Conflict`.
+5. **Runaway Prevention & Safety Guardrails:** Strict server-side caps on concurrency (`max: 50`) and requests (`max: 200`) prevent accidental billing spikes or upstream flooding.
+6. **Firestore Telemetry:** Automatically records test summaries, latency percentiles (min, avg, p50, p90, p95, p99, max), status codes, and deduplication efficiency ratios to collection `trainwatch_load_test_runs`.
+7. **Zero Impact on Production Service:** Interacts strictly with the public API endpoint via standard HTTPS POST requests without altering production internals.
 
 ---
 
