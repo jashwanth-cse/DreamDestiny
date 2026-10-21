@@ -17,7 +17,7 @@ Classes:
 Full 23-Station Sequential Route (253 forward station pairs):
   TEN  -> SMD  -> KIC  -> ASD  -> KKY  -> PCM  -> TSI  -> KDNL ->
   SNKL -> RJPM -> SVPR -> SVKS -> VPT  -> MDU  -> DG   -> ODC  ->
-  PLNI -> UDT  -> POY  -> KKN  -> PTJ  -> CBE  -> MTP
+  PLNI -> UDT  -> POY  -> CNV  -> PTJ  -> CBE  -> MTP
 
 Features:
   - Simulates up to 10,000 concurrent user queries
