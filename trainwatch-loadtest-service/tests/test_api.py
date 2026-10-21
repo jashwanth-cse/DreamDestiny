@@ -46,7 +46,7 @@ def test_health_check(client: TestClient):
 
 
 def test_run_endpoint_success(client: TestClient):
-    with patch(
+    with patch("app.main.check_blackout_window", return_value=(False, None)), patch(
         "app.services.load_generator.LoadGeneratorService.execute_run",
         return_value=dummy_run_summary(),
     ):
@@ -72,11 +72,12 @@ def test_overlapping_runs_rejected_with_409(client: TestClient):
 
     asyncio.run(acquire_lock())
     try:
-        response = client.post("/run", json={"scenario": "balanced"})
-        assert response.status_code == 409
-        data = response.json()
-        assert data["success"] is False
-        assert "in progress" in data["message"]
+        with patch("app.main.check_blackout_window", return_value=(False, None)):
+            response = client.post("/run", json={"scenario": "balanced"})
+            assert response.status_code == 409
+            data = response.json()
+            assert data["success"] is False
+            assert "in progress" in data["message"]
     finally:
         _run_lock.release()
 

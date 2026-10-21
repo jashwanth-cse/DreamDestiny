@@ -55,7 +55,7 @@ const ROUTE_STATIONS = [
   'PLNI', // Palani
   'UDT',  // Udumalaipettai
   'POY',  // Pollachi Junction
-  'KKN',  // Kinathukadavu
+  'CNV',  // Kinattukkadavu
   'PTJ',  // Podanur Junction
   'CBE',  // Coimbatore Junction
   'MTP',  // Mettupalayam (Destination)

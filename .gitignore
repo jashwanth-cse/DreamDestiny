@@ -30,6 +30,7 @@ build/
 *.db
 hotel_cache.db
 serviceKey.json
+test
 # Keys, certificates, and secrets
 *.pem
 *.key

@@ -53,7 +53,7 @@ def check_blackout_window(check_dt: Optional[datetime] = None) -> Tuple[bool, Op
     Returns:
         (is_blackout: bool, reason: Optional[str])
     """
-    if not settings.enforce_blackout_windows:
+    if check_dt is None and not settings.enforce_blackout_windows:
         return False, None
 
     dt = check_dt or get_current_ist_time()
