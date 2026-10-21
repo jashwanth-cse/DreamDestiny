@@ -100,6 +100,7 @@ class RequestMetric(BaseModel):
     response_timestamp: Optional[str] = None
     booking_status: Optional[str] = None
     correlation_id: Optional[str] = None
+    api_response: Optional[Dict[str, Any]] = None
 
 
 class CanonicalKeyStats(BaseModel):
@@ -149,6 +150,10 @@ class RunSummary(BaseModel):
     deduplication_verified: bool
     firestore_persisted: bool
     firestore_doc_id: Optional[str] = None
+    api_responses: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Live train availability response payloads returned by upstream API, keyed by canonical route key",
+    )
     key_breakdown: List[CanonicalKeyStats]
     errors: List[str] = []
 

@@ -66,11 +66,13 @@ class LoadGeneratorService:
                 error_msg = None
                 booking_status = None
                 response_timestamp = None
+                api_response_data = None
 
                 if success:
                     try:
                         body_json = resp.json()
                         data = body_json.get("data", {})
+                        api_response_data = data
                         booking_status = data.get("booking_status") or data.get("availability")
                         response_timestamp = data.get("last_updated")
                     except Exception:
@@ -92,6 +94,7 @@ class LoadGeneratorService:
                     response_timestamp=response_timestamp,
                     booking_status=booking_status,
                     correlation_id=correlation_id,
+                    api_response=api_response_data,
                 )
 
             except httpx.TimeoutException:
@@ -265,6 +268,16 @@ class LoadGeneratorService:
 
             efficiency = float(len(group))  # Ratio of simulated requests to single upstream execution
 
+            first_metric = group[0] if group else None
+            sample_payload = None
+            if first_metric:
+                sample_payload = {
+                    "booking_status": first_metric.booking_status,
+                    "last_updated": first_metric.response_timestamp,
+                    "correlation_id": first_metric.correlation_id,
+                    "api_response": first_metric.api_response,
+                }
+
             key_breakdowns.append(
                 CanonicalKeyStats(
                     canonical_key=key,
@@ -277,17 +290,21 @@ class LoadGeneratorService:
                     max_latency_ms=round(max(grp_latencies), 2) if grp_latencies else 0.0,
                     deduplication_confirmed=dedup_confirmed,
                     efficiency_ratio=round(efficiency, 2),
-                    sample_response={
-                        "booking_status": group[0].booking_status,
-                        "last_updated": group[0].response_timestamp,
-                        "correlation_id": group[0].correlation_id,
-                    } if group else None,
+                    sample_response=sample_payload,
                 )
             )
 
         unique_keys = len(key_groups)
         dedup_ratio = round(total_requests / unique_keys, 2) if unique_keys > 0 else 1.0
         rps = round(total_requests / total_duration, 2) if total_duration > 0 else 0.0
+
+        # Collect raw API response payloads by canonical key for Firestore inspection
+        api_responses_map: Dict[str, Any] = {}
+        for key, group in key_groups.items():
+            for m in group:
+                if m.api_response:
+                    api_responses_map[key] = m.api_response
+                    break
 
         # Global deduplication verification: true if identical keys were coalesced
         dedup_verified = (
@@ -311,6 +328,7 @@ class LoadGeneratorService:
             deduplication_verified=dedup_verified,
             firestore_persisted=False,
             firestore_doc_id=None,
+            api_responses=api_responses_map,
             key_breakdown=key_breakdowns,
             errors=errors,
         )
