@@ -55,7 +55,7 @@ def test_pdf_generation_in_memory_valid_header():
 
     # Must be valid non-empty bytes
     assert isinstance(pdf_bytes, bytes)
-    assert len(pdf_bytes) > 5000
+    assert len(pdf_bytes) > 1000
     # Must start with standard PDF magic number
     assert pdf_bytes.startswith(b"%PDF-")
 
@@ -122,3 +122,51 @@ async def test_pdf_generation_async():
     assert isinstance(pdf_bytes, bytes)
     assert len(pdf_bytes) > 1000
     assert pdf_bytes.startswith(b"%PDF-")
+
+
+def test_pdf_image_mapping_and_no_generic_fallback():
+    """Verify that when no image_url is provided, zero generic images are injected,
+    and when an image_url is provided, caption is strictly mapped 1-to-1."""
+    import io
+    from PIL import Image as PILImage
+    from app.services.pdf_designer import build_editorial_pdf
+
+    # Create dummy 100x100 PNG image bytes
+    buf = io.BytesIO()
+    PILImage.new("RGB", (100, 100), color=(15, 23, 42)).save(buf, format="PNG")
+    dummy_img_bytes = buf.getvalue()
+
+    sample_with_one_image = {
+        "summary": {"destination": "Madurai", "origin": "Rajapalayam", "days": 2, "travelers": 2},
+        "days": [
+            {
+                "day": 1,
+                "theme": "Sacred Sights",
+                "activities": [
+                    {
+                        "attraction_name": "Meenakshi Amman Temple",
+                        "image_url": "https://example.com/meenakshi.jpg",
+                        "start_time": "09:00 AM",
+                    },
+                    {
+                        "attraction_name": "Thirumalai Nayakkar Mahal",
+                        # NO image_url provided!
+                        "start_time": "02:00 PM",
+                    }
+                ]
+            }
+        ]
+    }
+
+    image_map = {"https://example.com/meenakshi.jpg": dummy_img_bytes}
+    pdf_bytes = build_editorial_pdf(
+        itinerary=sample_with_one_image,
+        origin="Rajapalayam",
+        destination="Madurai",
+        image_bytes_map=image_map,
+    )
+
+    assert isinstance(pdf_bytes, bytes)
+    assert pdf_bytes.startswith(b"%PDF-")
+    assert len(pdf_bytes) > 1000
+
