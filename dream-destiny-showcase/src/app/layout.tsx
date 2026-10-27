@@ -54,9 +54,9 @@ export const metadata: Metadata = {
     images: ["/og-image.svg"],
   },
   icons: {
-    icon: "/brand/dream-destiny-logo.svg",
-    shortcut: "/brand/dream-destiny-logo.svg",
-    apple: "/brand/dream-destiny-logo.svg",
+    icon: "/brand/dream-destiny-logo.png",
+    shortcut: "/brand/dream-destiny-logo.png",
+    apple: "/brand/dream-destiny-logo.png",
   },
   robots: {
     index: true,
@@ -83,7 +83,7 @@ export default function RootLayout({
         "@id": `${siteUrl}/#organization`,
         name: "Dream Destiny",
         url: siteUrl,
-        logo: `${siteUrl}/brand/dream-destiny-logo.svg`,
+        logo: `${siteUrl}/brand/dream-destiny-logo.png`,
         description: "AI-assisted travel planning bot operating directly on WhatsApp.",
       },
       {

@@ -2,7 +2,9 @@
 
 <!-- PROJECT LOGO BANNER -->
 <p align="center">
-  <img src="logo.png" alt="Dream Destiny Logo" width="340" />
+  <a href="https://github.com/jashwanth-cse/DreamDestiny">
+    <img src="logo.png" alt="Dream Destiny Logo" width="220" />
+  </a>
 </p>
 
 # 🧭 Dream Destiny

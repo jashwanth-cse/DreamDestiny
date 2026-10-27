@@ -65,13 +65,13 @@ export function Navbar() {
             className="flex items-center gap-3 group focus-visible:outline-2 focus-visible:outline-[#0B2345] rounded-xl p-1"
             aria-label="Dream Destiny - Return to Overview"
           >
-            <div className="relative w-9 h-9 rounded-xl bg-[#0B2345] flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+            <div className="relative w-10 h-10 rounded-full flex items-center justify-center overflow-hidden shrink-0 shadow-sm border border-[rgba(11,35,69,0.08)]">
               <Image
-                src="/brand/dream-destiny-logo.svg"
+                src="/brand/dream-destiny-logo.png"
                 alt="Dream Destiny brand icon"
-                width={36}
-                height={36}
-                className="w-full h-full object-contain"
+                width={40}
+                height={40}
+                className="w-full h-full object-cover"
                 priority
               />
             </div>

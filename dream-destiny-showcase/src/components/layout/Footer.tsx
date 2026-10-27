@@ -21,13 +21,13 @@ export function Footer() {
           {/* Brand Column */}
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="relative w-8 h-8 rounded-xl bg-[#0B2345] flex items-center justify-center overflow-hidden shrink-0">
+              <div className="relative w-9 h-9 rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-[rgba(11,35,69,0.08)] shadow-sm">
                 <Image
-                  src="/brand/dream-destiny-logo.svg"
+                  src="/brand/dream-destiny-logo.png"
                   alt="Dream Destiny logo mark"
-                  width={32}
-                  height={32}
-                  className="w-full h-full object-contain"
+                  width={36}
+                  height={36}
+                  className="w-full h-full object-cover"
                 />
               </div>
               <span className="text-xl font-extrabold text-[#0D0F10] tracking-tight">

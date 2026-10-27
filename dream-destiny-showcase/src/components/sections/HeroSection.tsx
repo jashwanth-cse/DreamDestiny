@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { MessageCircle, ArrowRight, Train, Bus, Plane, Hotel, Compass, CheckCircle2, Sparkles } from "lucide-react";
 import { Button } from "../ui/Button";
 import { getWhatsAppLink } from "../../lib/whatsapp";
@@ -118,8 +119,14 @@ export function HeroSection() {
 
                   {/* WhatsApp Chat Header */}
                   <div className="bg-[#0B2345] px-4 pt-6 pb-3 text-white flex items-center gap-3 z-10 shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-[#123B66] flex items-center justify-center font-bold text-xs">
-                      DD
+                    <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center border border-white/20 shrink-0 shadow-sm bg-white">
+                      <Image
+                        src="/brand/dream-destiny-logo.png"
+                        alt="Dream Destiny avatar"
+                        width={36}
+                        height={36}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
