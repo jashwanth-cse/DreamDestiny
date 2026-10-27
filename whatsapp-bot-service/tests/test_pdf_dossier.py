@@ -100,3 +100,25 @@ async def test_upload_media_in_test_mode(monkeypatch):
     assert media_id is not None
     assert isinstance(media_id, str)
     assert len(media_id) > 0
+
+
+@pytest.mark.asyncio
+async def test_pdf_generation_async():
+    """Verify async generation via Designer Playwright Engine."""
+    sample = {
+        "summary": {"destination": "Madurai", "origin": "Rajapalayam", "days": 3, "travelers": 2},
+        "days": [
+            {
+                "day": 1,
+                "theme": "Heritage",
+                "activities": [
+                    {"attraction_name": "Meenakshi Amman Temple", "start_time": "10:00 AM"}
+                ]
+            }
+        ]
+    }
+    from app.services.pdf_generator import generate_itinerary_pdf_async
+    pdf_bytes = await generate_itinerary_pdf_async(sample, "Rajapalayam", "Madurai")
+    assert isinstance(pdf_bytes, bytes)
+    assert len(pdf_bytes) > 1000
+    assert pdf_bytes.startswith(b"%PDF-")

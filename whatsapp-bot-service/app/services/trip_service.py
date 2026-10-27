@@ -14,7 +14,7 @@ from app.storage.firestore_store import firestore_store
 from app.storage.redis_store import redis_store
 from app.whatsapp.client import whatsapp_client
 from app.whatsapp.messages import format_itinerary_message, build_text_message, build_review_list_message, build_document_message
-from app.services.pdf_generator import generate_itinerary_pdf
+from app.services.pdf_generator import generate_itinerary_pdf, generate_itinerary_pdf_async
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,7 @@ class TripService:
 
             # 4b. Generate and Send Executive Travel Dossier PDF (in-memory, never saved to disk)
             try:
-                pdf_bytes = generate_itinerary_pdf(
+                pdf_bytes = await generate_itinerary_pdf_async(
                     itinerary=itinerary_data,
                     origin=trip_request.origin,
                     destination=trip_request.destination,
