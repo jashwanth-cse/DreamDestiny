@@ -29,16 +29,17 @@ class WhatsAppClient:
 
     async def get_client(self) -> httpx.AsyncClient:
         import asyncio
+        loop = asyncio.get_running_loop()
         if self._client is not None:
-            try:
-                loop = asyncio.get_running_loop()
-                if getattr(self._client, "_loop", None) is not None and self._client._loop != loop:
+            if getattr(self, "_active_loop", None) != loop or self._client.is_closed:
+                try:
                     await self._client.aclose()
-                    self._client = None
-            except Exception:
+                except Exception:
+                    pass
                 self._client = None
 
         if self._client is None or self._client.is_closed:
+            self._active_loop = loop
             self._client = httpx.AsyncClient(
                 timeout=httpx.Timeout(15.0, connect=5.0),
                 limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
@@ -48,6 +49,43 @@ class WhatsAppClient:
     async def close(self):
         if self._client and not self._client.is_closed:
             await self._client.aclose()
+
+    async def upload_media(self, file_bytes: bytes, filename: str, mime_type: str = "application/pdf") -> Optional[str]:
+        """
+        Uploads in-memory media directly to Meta WhatsApp Cloud API /media endpoint.
+        Returns the media_id string on success, or mock media ID in test mode.
+        Guarantees zero files are saved to disk.
+        """
+        if settings.app_env == "test" or not self.access_token or not self.phone_number_id:
+            logger.info("[MOCK WHATSAPP] Uploading in-memory media %s (%d bytes)", filename, len(file_bytes))
+            return "mock_media_dossier_pdf_id"
+
+        url = f"{self.base_url}/media"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+        }
+        files = {
+            "file": (filename, file_bytes, mime_type),
+        }
+        data = {
+            "messaging_product": "whatsapp",
+            "type": mime_type,
+        }
+
+        client = await self.get_client()
+        try:
+            resp = await client.post(url, headers=headers, files=files, data=data)
+            if resp.status_code in (200, 201):
+                res_data = resp.json()
+                media_id = res_data.get("id")
+                logger.info("Successfully uploaded media %s to WhatsApp (media_id=%s)", filename, media_id)
+                return media_id
+            else:
+                logger.error("Meta media upload failed: %d - %s", resp.status_code, resp.text)
+                return None
+        except Exception as e:
+            logger.error("Failed to upload media to WhatsApp Cloud API: %s", e)
+            return None
 
     async def send_message_payload(self, payload: Dict[str, Any]) -> bool:
         """

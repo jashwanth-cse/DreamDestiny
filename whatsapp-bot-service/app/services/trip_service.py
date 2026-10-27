@@ -13,7 +13,8 @@ from app.clients.planner_gateway import planner_gateway, PlannerGatewayError
 from app.storage.firestore_store import firestore_store
 from app.storage.redis_store import redis_store
 from app.whatsapp.client import whatsapp_client
-from app.whatsapp.messages import format_itinerary_message, build_text_message, build_review_list_message
+from app.whatsapp.messages import format_itinerary_message, build_text_message, build_review_list_message, build_document_message
+from app.services.pdf_generator import generate_itinerary_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,32 @@ class TripService:
                 trip_meta={"transport_mode": str(session.draft.transport_mode.value if session.draft.transport_mode else "")},
             )
             await whatsapp_client.send_message_payload(build_text_message(wa_id, formatted_text))
+
+            # 4b. Generate and Send Executive Travel Dossier PDF (in-memory, never saved to disk)
+            try:
+                pdf_bytes = generate_itinerary_pdf(
+                    itinerary=itinerary_data,
+                    origin=trip_request.origin,
+                    destination=trip_request.destination,
+                    trip_meta={"transport_mode": str(session.draft.transport_mode.value if session.draft.transport_mode else "")},
+                )
+                safe_dest = "".join(c for c in trip_request.destination if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+                filename = f"DreamDestiny_{safe_dest}_Travel_Dossier.pdf"
+                media_id = await whatsapp_client.upload_media(
+                    file_bytes=pdf_bytes,
+                    filename=filename,
+                    mime_type="application/pdf",
+                )
+                if media_id:
+                    doc_payload = build_document_message(
+                        recipient=wa_id,
+                        media_id=media_id,
+                        filename=filename,
+                        caption=f"📄 *{trip_request.destination.strip().title()} Executive Travel Dossier*\nComplete day-by-day timetable with clickable Google Maps links and verified emergency directory.",
+                    )
+                    await whatsapp_client.send_message_payload(doc_payload)
+            except Exception as pdf_err:
+                logger.error("Failed to generate or send Travel Dossier PDF for %s: %s", wa_id, pdf_err)
 
             # 5. Send Interactive 5-Star Rating Prompt
             review_msg = build_review_list_message(wa_id, destination=trip_request.destination)

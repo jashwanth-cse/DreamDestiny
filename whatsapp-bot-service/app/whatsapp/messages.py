@@ -91,6 +91,29 @@ def build_button_message(
     }
 
 
+def build_document_message(
+    recipient: str,
+    media_id: str,
+    filename: str,
+    caption: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Construct WhatsApp Document message payload from uploaded media_id."""
+    doc_obj: Dict[str, Any] = {
+        "id": media_id,
+        "filename": filename,
+    }
+    if caption:
+        doc_obj["caption"] = caption
+
+    return {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient,
+        "type": "document",
+        "document": doc_obj,
+    }
+
+
 def build_list_message(
     recipient: str,
     body_text: str,
