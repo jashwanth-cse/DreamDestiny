@@ -51,6 +51,30 @@ def build_text_message(recipient: str, text: str) -> Dict[str, Any]:
     }
 
 
+def build_image_message(
+    recipient: str,
+    media_id: Optional[str] = None,
+    image_url: Optional[str] = None,
+    caption: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Construct WhatsApp Image message payload with either uploaded media ID or public URL."""
+    image_block: Dict[str, Any] = {}
+    if media_id:
+        image_block["id"] = media_id
+    elif image_url:
+        image_block["link"] = image_url
+    if caption:
+        image_block["caption"] = caption
+
+    return {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient,
+        "type": "image",
+        "image": image_block,
+    }
+
+
 def build_button_message(
     recipient: str,
     body_text: str,

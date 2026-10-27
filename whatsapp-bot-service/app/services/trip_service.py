@@ -13,7 +13,13 @@ from app.clients.planner_gateway import planner_gateway, PlannerGatewayError
 from app.storage.firestore_store import firestore_store
 from app.storage.redis_store import redis_store
 from app.whatsapp.client import whatsapp_client
-from app.whatsapp.messages import format_itinerary_message, build_text_message, build_review_list_message
+from app.whatsapp.messages import (
+    format_itinerary_message,
+    build_text_message,
+    build_review_list_message,
+    build_image_message,
+)
+from app.services.itinerary_card_service import itinerary_card_service
 
 logger = logging.getLogger(__name__)
 
@@ -128,13 +134,35 @@ class TripService:
             }
             await redis_store.save_user_trip(wa_id, archived_trip)
 
-            # 4. Format and Send Itinerary to WhatsApp
+            # 4. Generate and Send Visual Itinerary Card (Loosely-coupled, safe fallback)
+            try:
+                card_bytes = itinerary_card_service.generate_card_bytes(
+                    itinerary_data=itinerary_data,
+                    origin=trip_request.origin,
+                    destination=trip_request.destination,
+                    days=trip_duration,
+                    travelers=trip_request.travelers,
+                )
+                if card_bytes:
+                    media_id = await whatsapp_client.upload_media(
+                        file_bytes=card_bytes,
+                        filename=f"itinerary_{trip.trip_id}.png",
+                        mime_type="image/png",
+                    )
+                    if media_id:
+                        caption = f"🌴 {trip_duration}-Day {trip_request.destination.title()} Itinerary • Dream Destiny"
+                        img_payload = build_image_message(wa_id, media_id=media_id, caption=caption)
+                        await whatsapp_client.send_message_payload(img_payload)
+            except Exception as card_err:
+                logger.warning("Visual itinerary card generation skipped: %s", card_err)
+
+            # 5. Format and Send Itinerary Text to WhatsApp
             formatted_text = format_itinerary_message(
                 itinerary_data, origin=trip_request.origin, destination=trip_request.destination
             )
             await whatsapp_client.send_message_payload(build_text_message(wa_id, formatted_text))
 
-            # 5. Send Interactive 5-Star Rating Prompt
+            # 6. Send Interactive 5-Star Rating Prompt
             review_msg = build_review_list_message(wa_id, destination=trip_request.destination)
             await whatsapp_client.send_message_payload(review_msg)
             return True

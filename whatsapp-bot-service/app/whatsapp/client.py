@@ -104,6 +104,46 @@ class WhatsAppClient:
             logger.error("Failed to connect to Meta WhatsApp Cloud API: %s", e)
             return False
 
+    async def upload_media(
+        self,
+        file_bytes: bytes,
+        filename: str = "itinerary_card.png",
+        mime_type: str = "image/png",
+    ) -> Optional[str]:
+        """
+        Uploads a media file to Meta WhatsApp Cloud API (POST /{phone_number_id}/media).
+        Returns the Meta media ID string on success, or None on failure/mock.
+        """
+        if settings.app_env == "test" or not self.access_token or not self.phone_number_id:
+            logger.info("[MOCK WHATSAPP] Uploading media %s (%d bytes). Returning mock media_id.", filename, len(file_bytes))
+            return "mock_media_id_12345"
+
+        url = f"{self.base_url}/media"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+        }
+        files = {
+            "file": (filename, file_bytes, mime_type),
+        }
+        data = {
+            "messaging_product": "whatsapp",
+            "type": mime_type,
+        }
+
+        client = await self.get_client()
+        try:
+            resp = await client.post(url, headers=headers, files=files, data=data)
+            if resp.status_code in (200, 201):
+                media_id = resp.json().get("id")
+                logger.info("Successfully uploaded media to Meta WhatsApp [id=%s]", media_id)
+                return media_id
+            else:
+                logger.error("Meta WhatsApp Media Upload error: %d - %s", resp.status_code, resp.text)
+                return None
+        except Exception as e:
+            logger.error("Failed to upload media to Meta WhatsApp: %s", e)
+            return None
+
     def get_sent_messages(self) -> List[Dict[str, Any]]:
         """Used in test suites to verify outgoing messages."""
         return list(self._sent_messages_log)
