@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # In-scope navigation and travel regex patterns
 NAVIGATION_PATTERNS = re.compile(
     r"^(hi|hello|hey|greetings|hola|namaste|vanakkam|good\s*(morning|afternoon|evening)|"
-    r"menu|main\s*menu|options|help|reset|cancel|start\s*over|new\s*trip|plan\s*trip|"
+    r"menu|main\s*menu|options|help|reset|cancel|exit|quit|stop|end|bye|goodbye|abort|start\s*over|new\s*trip|plan\s*trip|"
     r"yes|no|ok|okay|fine|sure|confirm|proceed|continue|resume|past\s*trips|my\s*trips|"
     r"trip\s*\d+|view\s*trip|\d+)$",
     re.IGNORECASE,
@@ -26,13 +26,15 @@ NAVIGATION_PATTERNS = re.compile(
 TRAVEL_KEYWORDS = {
     "trip", "travel", "tour", "tourist", "tourism", "vacation", "holiday", "itinerary",
     "journey", "visit", "explore", "flight", "flights", "plane", "airline", "train", "railway",
-    "irctc", "bus", "sleeper", "volvo", "cab", "taxi", "drive", "car", "hotel", "resort",
+    "irctc", "bus", "sleeper", "volvo", "cab", "taxi", "drive", "driving", "car", "own car",
+    "self drive", "road trip", "bike", "hotel", "resort",
     "homestay", "hostel", "stay", "room", "budget", "luxury", "cheap", "cost", "price",
     "fare", "days", "nights", "weekend", "tomorrow", "places", "attractions", "sightseeing",
     "beach", "mountain", "hill", "temple", "monument", "food", "restaurant", "destination",
     "origin", "depart", "arrival", "ticket", "pack", "weather", "mumbai", "delhi", "goa",
     "bangalore", "chennai", "kolkata", "hyderabad", "jaipur", "kerala", "manali", "shimla",
     "ooty", "kodaikanal", "pondicherry", "agra", "varanasi", "ladakh", "darjeeling", "coorg",
+    "madurai", "rajapalayam", "rjpm", "mdu",
 }
 
 # Explicitly off-topic patterns: coding, math equations, political/trivia essay prompts, medical
@@ -107,7 +109,7 @@ class GuardrailShield:
             )
             from app.understanding.llm_router import global_llm_router
             response = await global_llm_router.generate_content_async(prompt)
-            decision = response.upper()
+            decision = getattr(response, "text", str(response)).upper()
             if "OFF_TOPIC" in decision:
                 logger.info("[GUARDRAIL] LLM classified as OFF_TOPIC: '%s'", clean)
                 return False

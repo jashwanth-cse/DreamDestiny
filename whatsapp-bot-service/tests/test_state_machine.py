@@ -38,10 +38,15 @@ def test_state_machine_progressive_transitions():
     state5, prompt5 = StateMachine.transition(session, slots5)
     assert state5 == ConversationState.COLLECT_TRANSPORT
 
-    # 6. User specifies transport
+    # 6. User specifies transport (train requires train class)
     slots6 = ExtractedTripSlots(transport_mode=TransportPref.train)
     state6, prompt6 = StateMachine.transition(session, slots6)
-    assert state6 == ConversationState.COLLECT_HOTEL
+    assert state6 == ConversationState.COLLECT_TRAIN_CLASS
+
+    # 6b. User specifies train class
+    slots6b = ExtractedTripSlots(train_class="3A")
+    state6b, prompt6b = StateMachine.transition(session, slots6b)
+    assert state6b == ConversationState.COLLECT_HOTEL
 
     # 7. User specifies hotel
     slots7 = ExtractedTripSlots(hotel_category=HotelPref.mid_range)

@@ -214,12 +214,27 @@ def get_transport_prompt() -> Dict[str, Any]:
     return {
         "text": (
             "🚆 *How do you prefer to travel between cities?*\n\n"
-            "Tap an option below (or reply _'Any'_ for AI best recommendation):"
+            "Tap an option below, or reply *'Own car'*, *'Drive'*, or *'Any'* for best recommendation:"
         ),
         "buttons": [
             ("btn_transport_flight", "✈️ Flight"),
             ("btn_transport_train", "🚆 Train"),
             ("btn_transport_bus", "🚌 Bus"),
+        ],
+    }
+
+
+def get_cancellation_prompt(user_name: Optional[str] = None) -> Dict[str, Any]:
+    name_str = f", {user_name}" if user_name else ""
+    return {
+        "text": (
+            f"👋 *Trip planning cancelled{name_str}.*\n\n"
+            "Your previous trip draft has been cleared from memory.\n"
+            "Whenever you're ready to plan your next journey, simply say *'Hi'* or tell me where you'd like to go! 🌴✨"
+        ),
+        "buttons": [
+            ("btn_start_over", "🚀 Plan New Trip"),
+            ("btn_menu", "📋 Main Menu"),
         ],
     }
 

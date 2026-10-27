@@ -24,6 +24,7 @@ class ExtractedTripSlots(BaseModel):
     
     # Meta / Intent flags
     reset_intent: bool = False
+    cancel_intent: bool = False
     confirmation_intent: Optional[bool] = None  # True if user clicked Confirm / Yes
     modification_intent: Optional[str] = None   # e.g. "cheaper hotel", "change transport"
     menu_intent: bool = False                   # True if user requested Menu
@@ -51,10 +52,12 @@ class ExtractedTripSlots(BaseModel):
             or self.hotel_category
             or self.interests
             or self.reset_intent
+            or self.cancel_intent
             or self.confirmation_intent is not None
             or self.modification_intent
             or self.menu_intent
             or self.past_trips_intent
             or self.resume_intent
+            or self.train_class
             or self.selected_trip_number is not None
         )

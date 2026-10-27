@@ -41,6 +41,8 @@ class StateMachine:
             draft.budget_level = slots.budget_level
         if slots.transport_mode:
             draft.transport_mode = slots.transport_mode
+            if slots.transport_mode != TransportPref.train:
+                draft.berth_preference = None
         if slots.train_class:
             # Map slots.train_class string to BerthPreference
             from app.schemas.trip import BerthPreference
@@ -119,6 +121,8 @@ class StateMachine:
             session.current_trip_id = None
             session.paused_state = None
             session.state = ConversationState.START
+            if getattr(slots, "cancel_intent", False):
+                return ConversationState.START, prompts.get_cancellation_prompt(session.user_name)
             return ConversationState.START, prompts.get_welcome_message(session.user_name)
 
         # 4. Check for Resumption / Continue Intent
@@ -216,6 +220,11 @@ class StateMachine:
             if slots.confirmation_intent and not session.draft.transport_mode:
                 session.draft.transport_mode = TransportPref.any
 
+        elif current == ConversationState.COLLECT_TRAIN_CLASS:
+            if slots.confirmation_intent and not session.draft.berth_preference:
+                from app.schemas.trip import BerthPreference
+                session.draft.berth_preference = BerthPreference.any
+
         elif current == ConversationState.COLLECT_HOTEL:
             if slots.confirmation_intent and not session.draft.hotel_category:
                 session.draft.hotel_category = HotelPref.mid_range
@@ -229,6 +238,7 @@ class StateMachine:
             ConversationState.COLLECT_TRAVELERS,
             ConversationState.COLLECT_BUDGET,
             ConversationState.COLLECT_TRANSPORT,
+            ConversationState.COLLECT_TRAIN_CLASS,
             ConversationState.COLLECT_HOTEL,
             ConversationState.MAIN_MENU,
         ):

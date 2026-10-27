@@ -130,7 +130,10 @@ class TripService:
 
             # 4. Format and Send Itinerary to WhatsApp
             formatted_text = format_itinerary_message(
-                itinerary_data, origin=trip_request.origin, destination=trip_request.destination
+                itinerary_data,
+                origin=trip_request.origin,
+                destination=trip_request.destination,
+                trip_meta={"transport_mode": str(session.draft.transport_mode.value if session.draft.transport_mode else "")},
             )
             await whatsapp_client.send_message_payload(build_text_message(wa_id, formatted_text))
 

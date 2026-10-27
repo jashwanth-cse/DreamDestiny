@@ -122,7 +122,7 @@ def build_list_message(
     }
 
 
-def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination: str) -> str:
+def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination: str, trip_meta: Optional[Dict[str, Any]] = None) -> str:
     """
     Formats the JSON Itinerary produced by planner-service into a clean,
     visually appealing, executive WhatsApp markdown brochure with clickable Google Maps links.
@@ -163,11 +163,13 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
     lines.append("")
 
     # 3. Transport Recommendation (Outbound & Return)
+    transit_found = False
     for t_key, t_label in [("outbound_transport", "Outbound"), ("return_transport", "Return")]:
         transit = itinerary.get(t_key)
         if transit and isinstance(transit, dict):
+            transit_found = True
             mode = transit.get("mode", "Transport").title()
-            icon = "✈️" if "Flight" in mode else ("🚆" if "Train" in mode else "🚌")
+            icon = "🚗" if any(k in mode.lower() for k in ("car", "drive", "road")) else ("✈️" if "Flight" in mode else ("🚆" if "Train" in mode else "🚌"))
             
             # Print the header only for outbound, to group them together
             if t_label == "Outbound":
@@ -200,6 +202,8 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
                 clean_name = t_name.split(" (fl_")[0].split(" (bs_")[0].split(" (tn_")[0]
                 clean_num = str(t_num).split(" (fl_")[0] if t_num else ""
                 details.append(f"*{clean_name}*" + (f" ({clean_num})" if clean_num else ""))
+            elif any(k in mode.lower() for k in ("car", "drive")):
+                details.append("*Self-Drive / Own Car Route*")
             if dep_time or arr_time:
                 time_str = f"{dep_time} ➔ {arr_time}" if (dep_time and arr_time) else (dep_time or arr_time)
                 details.append(f"⏰ {time_str}")
@@ -214,6 +218,15 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
             if transit.get("instruction"):
                 clean_instruction = format_12hr_time(transit['instruction'])
                 lines.append(f"  💡 {clean_instruction}")
+            lines.append("")
+
+    if not transit_found:
+        raw_mode = str(itinerary.get("transport_mode") or (trip_meta.get("transport_mode") if trip_meta else "") or "").lower()
+        if any(k in raw_mode for k in ("car", "drive", "road")):
+            lines.append("🚗 *TRANSIT & COMMUTE:*")
+            lines.append(f"• *Road Trip:* Self-Drive / Own Car")
+            lines.append(f"  _Scenic highway route between {orig_title} and {dest_title}_")
+            lines.append("  💡 Fuel, toll charges, and local parking estimated in budget.")
             lines.append("")
 
     # 4. Accommodation

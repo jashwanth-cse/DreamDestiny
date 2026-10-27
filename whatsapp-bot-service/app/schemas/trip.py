@@ -20,6 +20,7 @@ class TransportPref(str, Enum):
     train = "train"
     bus = "bus"
     flight = "flight"
+    car = "car"
     any = "any"
 
 
@@ -133,7 +134,11 @@ class TripDraft(BaseModel):
             preferences=TripPreferences(
                 budget=BudgetPreferences(level=self.budget_level or BudgetLevel.medium),
                 transport=TransportPreferences(
-                    mode=self.transport_mode or TransportPref.any,
+                    mode=(
+                        self.transport_mode
+                        if self.transport_mode in (TransportPref.train, TransportPref.bus, TransportPref.flight)
+                        else TransportPref.any
+                    ),
                     berth_preference=self.berth_preference
                 ),
                 hotel=HotelPreferences(category=self.hotel_category or HotelPref.any),

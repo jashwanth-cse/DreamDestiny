@@ -62,10 +62,20 @@ class MessageParser:
             slots.resume_intent = True
             return slots
 
-        if payload_id in ("btn_cancel", "btn_start_over", "btn_plan_new") or lower in (
-            "reset", "restart", "start over", "cancel", "new trip", "plan new trip", "clear", "abort"
-        ):
+        if payload_id == "btn_cancel" or lower in (
+            "cancel", "exit", "quit", "stop", "abort", "end", "cancel trip", "cancel the trip",
+            "stop planning", "close", "bye", "goodbye", "clear"
+        ) or bool(re.search(r"^(?:exit|quit|stop|cancel\s*trip|cancel)\b", lower)):
             slots.reset_intent = True
+            slots.cancel_intent = True
+            slots.confirmation_intent = False
+            return slots
+
+        if payload_id in ("btn_start_over", "btn_plan_new") or lower in (
+            "reset", "restart", "start over", "new trip", "plan new trip"
+        ) or bool(re.search(r"^(?:restart|start\s*over|new\s*trip|plan\s*new\s*trip)\b", lower)):
+            slots.reset_intent = True
+            slots.cancel_intent = False
             slots.confirmation_intent = False
             return slots
 
@@ -95,12 +105,6 @@ class MessageParser:
             if not any(k in lower for k in ("from", "to", "days", "trip")):
                 return slots
 
-        # 2. Reset / Start Over Intent
-        if payload_id == "btn_cancel" or lower in ("reset", "restart", "start over", "cancel", "new trip", "clear", "abort"):
-            slots.reset_intent = True
-            slots.confirmation_intent = False
-            return slots
-
         # 3. Interactive Button Payloads
         if payload_id:
             if payload_id == "btn_transport_train":
@@ -109,6 +113,8 @@ class MessageParser:
                 slots.transport_mode = TransportPref.bus
             elif payload_id == "btn_transport_flight":
                 slots.transport_mode = TransportPref.flight
+            elif payload_id in ("btn_transport_car", "btn_transport_cab"):
+                slots.transport_mode = TransportPref.car
             elif payload_id == "btn_transport_any":
                 slots.transport_mode = TransportPref.any
             elif payload_id == "btn_budget_low":
@@ -198,16 +204,51 @@ class MessageParser:
                     if o_cand:
                         slots.origin = o_cand.title()
 
+        # Dual extraction: "to <dest> from <orig>" or "from <orig> to <dest>"
+        dual_to_from = re.search(
+            r"(?:go\s+to|going\s+to|trip\s+to|visit|visiting|head\s+to|travel\s+to|\bto)\s+([A-Za-z0-9\s]+?)\s+from\s+([A-Za-z0-9\s]+?)(?:\s+on|\s+for|\s+with|\s+in|$)",
+            clean_text,
+            re.IGNORECASE,
+        )
+        dual_from_to = re.search(
+            r"\bfrom\s+([A-Za-z0-9\s]+?)\s+(?:go\s+to|going\s+to|trip\s+to|visit|visiting|head\s+to|travel\s+to|\bto)\s+([A-Za-z0-9\s]+?)(?:\s+on|\s+for|\s+with|\s+in|$)",
+            clean_text,
+            re.IGNORECASE,
+        )
+        if dual_to_from:
+            d_cand = re.sub(r"^(?:go\s+to|reach|visit)\s+", "", dual_to_from.group(1).strip(), flags=re.IGNORECASE).strip()
+            o_cand = dual_to_from.group(2).strip()
+            if d_cand and not slots.destination:
+                slots.destination = d_cand.title()
+            if o_cand and not slots.origin:
+                slots.origin = o_cand.title()
+        elif dual_from_to:
+            o_cand = dual_from_to.group(1).strip()
+            d_cand = re.sub(r"^(?:go\s+to|reach|visit)\s+", "", dual_from_to.group(2).strip(), flags=re.IGNORECASE).strip()
+            if o_cand and not slots.origin:
+                slots.origin = o_cand.title()
+            if d_cand and not slots.destination:
+                slots.destination = d_cand.title()
+
         if not slots.origin:
-            from_match = re.search(r"\bfrom\s+([A-Za-z\s]+?)(?:\s+to|\s+on|\s+for|\s+with|\s+in|$)", clean_text, re.IGNORECASE)
+            from_match = re.search(
+                r"\b(?:from|starting\s+from|traveling\s+from|out\s+of)\s+([A-Za-z0-9\s]+?)(?:\s+to|\s+on|\s+for|\s+with|\s+in|$)",
+                clean_text,
+                re.IGNORECASE,
+            )
             if from_match:
                 slots.origin = from_match.group(1).strip().title()
 
         if not slots.destination:
-            to_match = re.search(r"\b(?:to|trip to|visiting|visit)\s+([A-Za-z\s]+?)(?:\s+from|\s+on|\s+for|\s+with|\s+in|$)", clean_text, re.IGNORECASE)
+            to_match = re.search(
+                r"(?:go\s+to|going\s+to|trip\s+to|visit|visiting|head\s+to|travel\s+to|\bto)\s+([A-Za-z0-9\s]+?)(?:\s+from|\s+on|\s+for|\s+with|\s+in|$)",
+                clean_text,
+                re.IGNORECASE,
+            )
             if to_match:
                 dest_cand = to_match.group(1).strip()
-                if len(dest_cand) >= 3 and dest_cand.lower() not in ("chennai", "delhi", "mumbai", "train", "bus", "flight"):
+                dest_cand = re.sub(r"^(?:go\s+to|reach|visit)\s+", "", dest_cand, flags=re.IGNORECASE).strip()
+                if len(dest_cand) >= 2 and dest_cand.lower() not in ("chennai", "delhi", "mumbai", "train", "bus", "flight", "car"):
                     slots.destination = dest_cand.title()
 
         # 6. Natural Language & Regex Date Parsing
@@ -245,6 +286,8 @@ class MessageParser:
                 slots.transport_mode = TransportPref.bus
             elif re.search(r"\b(flight|fly|plane|air|airline)\b", lower):
                 slots.transport_mode = TransportPref.flight
+            elif re.search(r"\b(own\s*car|by\s*(?:my\s*)?car|car|drive|driving|self\s*drive|road\s*trip|cab|taxi|bike)\b", lower):
+                slots.transport_mode = TransportPref.car
             elif re.search(r"\b(any transport|any mode|any)\b", lower) and current_state == ConversationState.COLLECT_TRANSPORT:
                 slots.transport_mode = TransportPref.any
 
@@ -289,8 +332,14 @@ class MessageParser:
 
             # When bot asked "Where is your dream destination?"
             elif current_state in (ConversationState.START, ConversationState.COLLECT_DESTINATION) and not slots.destination:
-                city_cand = re.sub(r"^(?:to|trip to|visit|visiting|going to)\s+", "", clean_text, flags=re.IGNORECASE).strip()
-                if len(city_cand) >= 2 and city_cand.lower() not in ("yes", "no", "hi", "hello", "reset", "plan", "cancel", "new trip"):
+                city_cand = re.sub(
+                    r"^(?:i\s+(?:want|wish|would\s+like|went|plan|am\s+planning)\s+to\s+(?:go\s+to|visit|travel\s+to|reach)?|"
+                    r"plan\s+(?:a\s+)?trip\s+to|trip\s+to|going\s+to|go\s+to|travel\s+to|visit|visiting|head\s+to|take\s+me\s+to|to)\s+",
+                    "",
+                    clean_text,
+                    flags=re.IGNORECASE,
+                ).strip()
+                if len(city_cand) >= 2 and city_cand.lower() not in ("yes", "no", "hi", "hello", "reset", "plan", "cancel", "new trip", "exit", "quit", "stop"):
                     slots.destination = city_cand.title()
 
             # When bot asked "How many people are traveling?"
@@ -305,6 +354,10 @@ class MessageParser:
                     days_only = re.search(r"^\s*(\d{1,2})\s*(?:days?|nights?)?\s*$", clean_text, re.IGNORECASE)
                     if days_only:
                         slots.duration_days = int(days_only.group(1))
+
+        # If user is in COLLECT_TRAIN_CLASS but specifies a different transport mode (e.g., "by my own car", "flight", "bus")
+        if current_state == ConversationState.COLLECT_TRAIN_CLASS and slots.transport_mode and slots.transport_mode != TransportPref.train:
+            slots.train_class = None
 
         return slots
 
@@ -462,9 +515,12 @@ class MessageParser:
                 try:
                     llm_slots = await self._parse_with_llm(text, current_state)
                     
-                    # Prevent LLM hallucination: if user is picking train class, ignore spurious transport mode changes
-                    if current_state == ConversationState.COLLECT_TRAIN_CLASS and llm_slots.train_class:
-                        llm_slots.transport_mode = None
+                    # If user explicitly specified car, flight, or bus, allow switching away from train class
+                    if current_state == ConversationState.COLLECT_TRAIN_CLASS:
+                        if llm_slots.transport_mode and llm_slots.transport_mode != TransportPref.train:
+                            llm_slots.train_class = None
+                        elif llm_slots.train_class:
+                            llm_slots.transport_mode = None
                         
                     target_slots = llm_slots
                 except Exception as e:
