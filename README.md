@@ -2,7 +2,7 @@
 
 <!-- PROJECT LOGO BANNER -->
 <p align="center">
-  <img src="dream-destiny-showcase/public/brand/dream-destiny-logo.svg" alt="Dream Destiny Logo" width="340" />
+  <img src="logo.png" alt="Dream Destiny Logo" width="340" />
 </p>
 
 # 🧭 Dream Destiny
