@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" fill="none">
+  <defs>
+    <linearGradient id="skyRishi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D7E6ED"/>
+      <stop offset="70%" stop-color="#EBF3F5"/>
+      <stop offset="100%" stop-color="#FCEBE1"/>
+    </linearGradient>
+    <linearGradient id="riverGanges" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4B9096"/>
+      <stop offset="60%" stop-color="#34767C"/>
+      <stop offset="100%" stop-color="#1B5156"/>
+    </linearGradient>
+  </defs>
+  <!-- Himalayan Morning Sky -->
+  <rect width="800" height="280" fill="url(#skyRishi)"/>
+  <circle cx="640" cy="120" r="40" fill="#FFDFC7" opacity="0.8"/>
+  <!-- Tall Himalayan Ridges -->
+  <path d="M0 200L180 110L360 210L520 120L720 220L800 170V340H0Z" fill="#9DB7B6" opacity="0.6"/>
+  <path d="M0 240L220 160L440 250L660 170L800 230V350H0Z" fill="#6E8E8B" opacity="0.8"/>
+  <path d="M-50 280L140 210L380 290L600 220L850 300V500H-50Z" fill="#4B6E6A"/>
+  <!-- Ganges River Gorge -->
+  <path d="M120 320C240 330 380 340 500 370C620 400 720 450 800 480V500H200L120 320Z" fill="url(#riverGanges)"/>
+  <!-- Suspension Bridge (Laxman Jhula silhouette) -->
+  <path d="M100 290C280 330 460 330 640 290" stroke="#0D0F10" stroke-width="3" stroke-linecap="round"/>
+  <!-- Bridge Towers -->
+  <path d="M100 260V310M120 260V310M620 260V310M640 260V310" stroke="#0D0F10" stroke-width="3"/>
+  <line x1="100" y1="260" x2="120" y2="260" stroke="#0D0F10" stroke-width="2"/>
+  <line x1="620" y1="260" x2="640" y2="260" stroke="#0D0F10" stroke-width="2"/>
+  <!-- Vertical suspension cables -->
+  <line x1="200" y1="310" x2="200" y2="325" stroke="#0D0F10" stroke-width="1.5"/>
+  <line x1="280" y1="322" x2="280" y2="335" stroke="#0D0F10" stroke-width="1.5"/>
+  <line x1="370" y1="326" x2="370" y2="338" stroke="#0D0F10" stroke-width="1.5"/>
+  <line x1="460" y1="324" x2="460" y2="336" stroke="#0D0F10" stroke-width="1.5"/>
+  <line x1="540" y1="313" x2="540" y2="326" stroke="#0D0F10" stroke-width="1.5"/>
+  <!-- River reflections -->
+  <path d="M300 390C360 390 420 392 480 390" stroke="#A9DCDD" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M340 430C420 430 500 432 580 430" stroke="#A9DCDD" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  <!-- Badge -->
+  <rect x="24" y="24" width="240" height="32" rx="16" fill="#0B2345" fill-opacity="0.85"/>
+  <text x="36" y="45" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#FFFFFF" letter-spacing="0.04em">RISHIKESH • HIMALAYAN</text>
+</svg>

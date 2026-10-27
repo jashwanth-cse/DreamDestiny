@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 215 50" width="215" height="50" fill="none">
+  <!-- Amazon Bedrock AWS official architecture & AI service mark -->
+  <rect width="215" height="50" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(10, 10)">
+    <!-- AWS Bedrock Hexagonal Architecture Prism Emblem -->
+    <path d="M15 2L28 9.5V24.5L15 32L2 24.5V9.5L15 2Z" fill="#232F3E" stroke="#FF9900" stroke-width="1.5" />
+    <path d="M15 2V17M15 17L28 9.5M15 17L2 9.5" stroke="#FF9900" stroke-width="1.5" stroke-linejoin="round" />
+    <path d="M15 17V32" stroke="#FF9900" stroke-width="1.5" />
+    <circle cx="15" cy="17" r="3.5" fill="#527FFF" />
+    <circle cx="8" cy="13" r="1.5" fill="#00A4A6" />
+    <circle cx="22" cy="13" r="1.5" fill="#00A4A6" />
+    <circle cx="15" cy="25" r="1.5" fill="#00A4A6" />
+  </g>
+  <!-- Text: AWS Amazon Bedrock -->
+  <text x="48" y="24" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="10" font-weight="700" fill="#FF9900" letter-spacing="0.08em">AWS</text>
+  <text x="48" y="37" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="15" font-weight="700" fill="#232F3E" letter-spacing="-0.01em">Amazon Bedrock</text>
+</svg>

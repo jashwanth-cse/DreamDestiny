@@ -1,3 +1,14 @@
+
+# Node.js dependencies & builds
+node_modules/
+*/node_modules/
+**/node_modules/
+dream-destiny-showcase/.next/
+dream-destiny-showcase/out/
+test/node_modules/
+.coverage
+htmlcov/
+ref.jpg
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

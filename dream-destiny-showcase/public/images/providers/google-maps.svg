@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 50" width="190" height="50" fill="none">
+  <!-- Google Maps official multi-color pin mark -->
+  <rect width="190" height="50" rx="8" fill="#FFFFFF"/>
+  <g transform="translate(14, 10)">
+    <!-- Pin Red top -->
+    <path d="M12.98 0C5.81 0 0 5.81 0 12.98c0 2.27.59 4.41 1.62 6.27L7.23 7.82A8.13 8.13 0 0 1 12.98 4.88c2.25 0 4.3.91 5.75 2.37l5.61-5.61A12.91 12.91 0 0 0 12.98 0z" fill="#EA4335"/>
+    <!-- Pin Yellow/Orange curve -->
+    <path d="M1.62 19.25C3.39 22.46 6.01 25.86 8.79 29.83l9.94-9.94a8.16 8.16 0 0 1-5.75 2.37c-4.52 0-8.18-3.66-8.18-8.18 0-1.89.65-3.64 1.73-5.04L1.62 19.25z" fill="#FBBC05"/>
+    <!-- Pin Green bottom curve -->
+    <path d="M8.79 29.83c3.08 4.39 5.85 9.07 5.85 9.07s2.77-4.68 5.85-9.07l-9.94-9.94-1.76 9.94z" fill="#34A853"/>
+    <!-- Pin Blue right curve -->
+    <path d="M18.73 7.25c2.94 1.54 4.93 4.62 4.93 8.15 0 2.76-1.21 5.25-3.14 6.94l5.61 5.61c3.19-2.94 5.21-7.18 5.21-11.91 0-7.17-5.81-12.98-12.98-12.98l.37 4.19z" fill="#4285F4"/>
+    <!-- White center dot -->
+    <circle cx="12.98" cy="12.98" r="4.3" fill="#FFFFFF"/>
+  </g>
+  <!-- Text: Google Maps -->
+  <text x="54" y="31" font-family="'Plus Jakarta Sans', Roboto, Arial, sans-serif" font-size="16" font-weight="600" fill="#3C4043" letter-spacing="-0.01em">Google <tspan font-weight="400" fill="#5F6368">Maps</tspan></text>
+</svg>

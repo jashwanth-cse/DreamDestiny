@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 50" width="160" height="50" fill="none">
+  <!-- ixigo official logo reproduction: Red rounded wordmark with train accent -->
+  <rect width="160" height="50" rx="8" fill="#FFFFFF"/>
+  <circle cx="28" cy="25" r="16" fill="#E42529"/>
+  <!-- Train silhouette icon -->
+  <path d="M22 17H34C35.1 17 36 17.9 36 19V29C36 30.1 35.1 31 34 31L35 33H33L32 31H24L23 33H21L22 31C20.9 31 20 30.1 20 29V19C20 17.9 20.9 17 22 17Z" fill="#FFFFFF"/>
+  <rect x="23" y="19" width="10" height="5" rx="1" fill="#E42529"/>
+  <circle cx="24" cy="28" r="1.5" fill="#FFFFFF"/>
+  <circle cx="32" cy="28" r="1.5" fill="#FFFFFF"/>
+  <!-- Wordmark -->
+  <text x="52" y="32" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="24" font-weight="800" fill="#E42529" letter-spacing="-0.03em">ixigo</text>
+</svg>

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" fill="none">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#F2F6F6"/>
+  <!-- Decorative Brand Glow -->
+  <circle cx="1050" cy="120" r="320" fill="#B7D7AD" opacity="0.35"/>
+  <circle cx="150" cy="520" r="280" fill="#B9CCCA" opacity="0.25"/>
+  
+  <!-- Outer Card Frame -->
+  <rect x="60" y="60" width="1080" height="510" rx="28" fill="#FFFFFF" stroke="#0D0F10" stroke-opacity="0.08" stroke-width="1.5"/>
+
+  <!-- Logo Pill -->
+  <g transform="translate(110, 110)">
+    <rect width="48" height="48" rx="14" fill="#0B2345"/>
+    <path d="M24 12L34 36L24 30L14 36L24 12Z" fill="#79B66A"/>
+    <circle cx="24" cy="24" r="3" fill="#FFFFFF"/>
+    <text x="64" y="32" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="24" font-weight="800" fill="#0D0F10" letter-spacing="-0.02em">Dream Destiny</text>
+    <text x="64" y="46" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="12" font-weight="600" fill="#5E6060" letter-spacing="0.06em">YOUR TRAVEL COMPANION</text>
+  </g>
+
+  <!-- Tagline badge -->
+  <rect x="110" y="210" width="280" height="36" rx="18" fill="#E8F1EF"/>
+  <text x="126" y="233" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="13" font-weight="700" fill="#0B2345" letter-spacing="0.04em">WHATSAPP AI TRAVEL PLANNER</text>
+
+  <!-- Main Headline -->
+  <text x="110" y="310" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="48" font-weight="800" fill="#0D0F10" letter-spacing="-0.03em">
+    Create Personalized Trip Plans
+  </text>
+  <text x="110" y="365" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="48" font-weight="800" fill="#0D0F10" letter-spacing="-0.03em">
+    in Seconds with AI
+  </text>
+
+  <!-- Supporting Copy -->
+  <text x="110" y="425" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="20" font-weight="400" fill="#5E6060">
+    Plan your next journey right inside WhatsApp. Trains, buses, flights, and stays in one chat.
+  </text>
+
+  <!-- Key Value Prop Pill -->
+  <rect x="110" y="475" width="460" height="44" rx="22" fill="#0D0F10"/>
+  <circle cx="132" cy="497" r="6" fill="#79B66A"/>
+  <text x="148" y="503" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="#FFFFFF">
+    No installation. No separate signup. Just WhatsApp.
+  </text>
+
+  <!-- Mockup Preview Right Side -->
+  <g transform="translate(800, 160)">
+    <rect width="280" height="340" rx="24" fill="#0B2345"/>
+    <rect x="12" y="16" width="256" height="308" rx="16" fill="#EFEAE2"/>
+    <rect x="24" y="36" width="180" height="40" rx="8" fill="#FFFFFF"/>
+    <text x="36" y="60" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#0B2345">Where are you heading?</text>
+    <rect x="76" y="90" width="180" height="40" rx="8" fill="#D9FDD3"/>
+    <text x="88" y="114" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#0D0F10">Weekend in Udaipur!</text>
+    <rect x="24" y="144" width="232" height="130" rx="10" fill="#FFFFFF"/>
+    <text x="36" y="170" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" font-weight="700" fill="#0B2345">3-Day Custom Itinerary</text>
+    <text x="36" y="195" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#5E6060">🚆 Western Railway scheduled</text>
+    <text x="36" y="215" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#5E6060">🏨 Lake Pichola stay options</text>
+    <text x="36" y="235" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#5E6060">🗺️ Palace walking routes</text>
+  </g>
+</svg>

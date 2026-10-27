@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" fill="none">
+  <defs>
+    <linearGradient id="skyUdaipur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E4EDEF"/>
+      <stop offset="70%" stop-color="#FCEEE6"/>
+      <stop offset="100%" stop-color="#F9D7C2"/>
+    </linearGradient>
+    <linearGradient id="waterUdaipur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A5C3C8"/>
+      <stop offset="100%" stop-color="#769FA6"/>
+    </linearGradient>
+  </defs>
+  <!-- Sky -->
+  <rect width="800" height="320" fill="url(#skyUdaipur)"/>
+  <!-- Sun / Soft glow -->
+  <circle cx="580" cy="180" r="60" fill="#FFE2C9" opacity="0.6"/>
+  <!-- Distant Aravalli Hills -->
+  <path d="M0 240Q160 210 320 235T640 220T800 240V330H0Z" fill="#B9CCCA" opacity="0.7"/>
+  <path d="M0 260Q200 235 440 255T800 248V330H0Z" fill="#9FB4B2"/>
+  <!-- Palace Silhouette & Domes -->
+  <path d="M120 310V220H160V190L180 170L200 190V220H250V250H280V200L300 180L320 200V310H120Z" fill="#EAE6DF"/>
+  <path d="M140 310V240H230V310H140Z" fill="#D5CEC3"/>
+  <path d="M350 310V260H460V230L480 210L500 230V260H540V310H350Z" fill="#EAE6DF"/>
+  <!-- Palace Arches & Windows -->
+  <circle cx="180" cy="205" r="8" fill="#0B2345" opacity="0.7"/>
+  <circle cx="300" cy="215" r="8" fill="#0B2345" opacity="0.7"/>
+  <circle cx="480" cy="245" r="8" fill="#0B2345" opacity="0.7"/>
+  <!-- Lake Pichola Water -->
+  <rect y="310" width="800" height="190" fill="url(#waterUdaipur)"/>
+  <!-- Water ripples -->
+  <path d="M40 340C120 338 180 344 260 340S380 336 460 340S580 344 680 340" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  <path d="M100 370C180 368 240 374 340 370S460 366 540 370S660 374 740 370" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+  <path d="M20 410C140 408 220 414 320 410S440 406 580 410S700 414 780 410" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity="0.2"/>
+  <!-- Traditional Boat Silhouette -->
+  <path d="M520 360C540 360 590 355 610 365C580 370 540 370 520 360Z" fill="#0D0F10" opacity="0.8"/>
+  <path d="M565 348V360" stroke="#0D0F10" stroke-width="2"/>
+  <!-- Badge: Replaceable Placeholder -->
+  <rect x="24" y="24" width="230" height="32" rx="16" fill="#0B2345" fill-opacity="0.85"/>
+  <text x="36" y="45" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#FFFFFF" letter-spacing="0.04em">UDAIPUR • HERITAGE</text>
+</svg>

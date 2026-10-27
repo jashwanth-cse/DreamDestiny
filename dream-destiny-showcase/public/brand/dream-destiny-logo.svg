@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" fill="none" width="240" height="60">
+  <!-- Brand Icon -->
+  <rect x="6" y="8" width="44" height="44" rx="12" fill="#0B2345" />
+  <path d="M28 16L38 38L28 32L18 38L28 16Z" fill="#79B66A" />
+  <circle cx="28" cy="27" r="3" fill="#FFFFFF" />
+  <!-- Brand Text -->
+  <text x="60" y="32" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="20" font-weight="700" fill="#0D0F10" letter-spacing="-0.02em">Dream Destiny</text>
+  <text x="60" y="46" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="11" font-weight="500" fill="#5E6060" letter-spacing="0.04em">YOUR TRAVEL COMPANION</text>
+</svg>

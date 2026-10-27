@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" fill="none">
+  <defs>
+    <linearGradient id="skyMunnar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DEEBE8"/>
+      <stop offset="60%" stop-color="#E8F1EF"/>
+      <stop offset="100%" stop-color="#F2F6F6"/>
+    </linearGradient>
+    <linearGradient id="hillGreen1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#79B66A"/>
+      <stop offset="100%" stop-color="#326B28"/>
+    </linearGradient>
+  </defs>
+  <!-- Sky -->
+  <rect width="800" height="260" fill="url(#skyMunnar)"/>
+  <!-- Distant Blue Ridge Mountains in Mist -->
+  <path d="M0 190Q220 130 460 170T800 140V300H0Z" fill="#A4BDBB" opacity="0.6"/>
+  <path d="M0 220Q200 170 520 200T800 180V320H0Z" fill="#8FAFA9" opacity="0.7"/>
+  <!-- Misty Hill Layer -->
+  <path d="M0 260Q260 210 560 240T800 230V500H0Z" fill="#5F9754"/>
+  <!-- Rolling Tea Estate Slopes -->
+  <path d="M-50 320Q200 250 480 300T850 270V500H-50Z" fill="url(#hillGreen1)"/>
+  <path d="M0 380Q320 310 600 370T820 340V500H0Z" fill="#24511D"/>
+  <!-- Terraced Tea lines (Curved ridges) -->
+  <path d="M20 340Q220 290 440 330" stroke="#B7D7AD" stroke-width="2" stroke-dasharray="6 4" opacity="0.6"/>
+  <path d="M40 365Q260 315 500 355" stroke="#B7D7AD" stroke-width="2" stroke-dasharray="6 4" opacity="0.6"/>
+  <path d="M10 400Q280 340 580 390" stroke="#79B66A" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.5"/>
+  <path d="M50 435Q320 370 660 420" stroke="#79B66A" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.5"/>
+  <path d="M20 470Q360 410 740 460" stroke="#79B66A" stroke-width="2.5" stroke-dasharray="7 4" opacity="0.4"/>
+  <!-- Silver Oak / Shade trees -->
+  <path d="M680 430V330" stroke="#4B3B2B" stroke-width="4"/>
+  <circle cx="680" cy="320" r="28" fill="#1B4215" opacity="0.9"/>
+  <path d="M730 460V370" stroke="#4B3B2B" stroke-width="3"/>
+  <circle cx="730" cy="360" r="22" fill="#285621" opacity="0.9"/>
+  <!-- Badge -->
+  <rect x="24" y="24" width="230" height="32" rx="16" fill="#0B2345" fill-opacity="0.85"/>
+  <text x="36" y="45" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#FFFFFF" letter-spacing="0.04em">MUNNAR • TEA RETREAT</text>
+</svg>

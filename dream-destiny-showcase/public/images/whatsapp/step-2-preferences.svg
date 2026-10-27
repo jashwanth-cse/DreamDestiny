@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 620" width="400" height="620" fill="none">
+  <!-- WhatsApp Step 2 Mockup: Share Preferences -->
+  <rect width="400" height="620" rx="36" fill="#F0F4F4" stroke="#D1DEDC" stroke-width="2"/>
+  
+  <!-- Top Status Bar -->
+  <rect x="130" y="8" width="140" height="20" rx="10" fill="#0D0F10"/>
+  <circle cx="250" cy="18" r="4" fill="#1C2123"/>
+  
+  <!-- WhatsApp Header Bar -->
+  <rect x="0" y="36" width="400" height="64" fill="#0B2345"/>
+  <rect x="16" y="48" width="40" height="40" rx="20" fill="#123B66"/>
+  <path d="M36 56L43 72L36 67L29 72L36 56Z" fill="#79B66A"/>
+  <text x="68" y="65" font-family="'Plus Jakarta Sans', sans-serif" font-size="15" font-weight="700" fill="#FFFFFF">Dream Destiny</text>
+  <circle cx="178" cy="60" r="7" fill="#79B66A"/>
+  <path d="M175 60L177 62L181 58" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="68" y="80" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="400" fill="#B9CCCA">Typing recommendation...</text>
+  
+  <!-- Chat Canvas -->
+  <rect x="0" y="100" width="400" height="520" fill="#EFEAE2"/>
+
+  <!-- User Outgoing Preference Bubble -->
+  <path d="M90 120H370C375.5 120 380 124.5 380 130V210C380 215.5 375.5 220 370 220H100L85 228V130C85 124.5 89.5 120 90 120Z" fill="#D9FDD3"/>
+  <text x="105" y="145" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" font-weight="600" fill="#0D0F10">Trip Preferences:</text>
+  <text x="105" y="167" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" fill="#3B4A54">• Mumbai to Udaipur for 3 days</text>
+  <text x="105" y="187" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" fill="#3B4A54">• 2 adults, prefer rail or scenic route</text>
+  <text x="105" y="207" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" fill="#3B4A54">• Focus: Heritage, lake views & food</text>
+  <text x="350" y="212" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#667781">10:05 AM ✓✓</text>
+  
+  <!-- Bot Parsing / Confirmation Bubble -->
+  <rect x="20" y="240" width="340" height="200" rx="14" fill="#FFFFFF"/>
+  <rect x="36" y="254" width="130" height="22" rx="11" fill="#E8F1EF"/>
+  <text x="101" y="269" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" font-weight="700" fill="#0B2345">PREFERENCES PARSED</text>
+  
+  <text x="36" y="300" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" font-weight="600" fill="#0D0F10">Checking verified route options:</text>
+  <text x="36" y="324" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" fill="#5E6060">🚆 ixigo: Checking Western Railway trains</text>
+  <text x="36" y="344" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" fill="#5E6060">🏨 Google Hotels: Checking Lake Pichola stays</text>
+  <text x="36" y="364" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" fill="#5E6060">🗺️ Google Maps: Mapping walking distance between palaces</text>
+  
+  <!-- Progress bar -->
+  <rect x="36" y="388" width="308" height="6" rx="3" fill="#E5E9E9"/>
+  <rect x="36" y="388" width="240" height="6" rx="3" fill="#79B66A"/>
+  
+  <text x="36" y="416" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="500" fill="#326B28">Bedrock AI synthesizing custom 3-day itinerary...</text>
+  <text x="325" y="430" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#667781">10:05 AM</text>
+
+  <!-- Placeholder Badge -->
+  <rect x="20" y="550" width="360" height="40" rx="10" fill="#0D0F10" fill-opacity="0.9"/>
+  <text x="200" y="574" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#B7D7AD">STEP 2: SHARE PREFERENCES (MOCKUP PLACEHOLDER)</text>
+</svg>

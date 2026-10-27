@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 620" width="400" height="620" fill="none">
+  <!-- WhatsApp Step 1 Mockup: Start on WhatsApp -->
+  <rect width="400" height="620" rx="36" fill="#F0F4F4" stroke="#D1DEDC" stroke-width="2"/>
+  
+  <!-- Top Status Bar -->
+  <rect x="130" y="8" width="140" height="20" rx="10" fill="#0D0F10"/>
+  <circle cx="250" cy="18" r="4" fill="#1C2123"/>
+  
+  <!-- WhatsApp Header Bar -->
+  <rect x="0" y="36" width="400" height="64" fill="#0B2345"/>
+  <!-- Avatar -->
+  <rect x="16" y="48" width="40" height="40" rx="20" fill="#123B66"/>
+  <path d="M36 56L43 72L36 67L29 72L36 56Z" fill="#79B66A"/>
+  <!-- Contact Name & Verified Badge -->
+  <text x="68" y="65" font-family="'Plus Jakarta Sans', sans-serif" font-size="15" font-weight="700" fill="#FFFFFF">Dream Destiny</text>
+  <circle cx="178" cy="60" r="7" fill="#79B66A"/>
+  <path d="M175 60L177 62L181 58" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="68" y="80" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="400" fill="#B9CCCA">Official Travel Bot • Online</text>
+  
+  <!-- Chat Canvas -->
+  <rect x="0" y="100" width="400" height="520" fill="#EFEAE2"/>
+  
+  <!-- Encryption notice -->
+  <rect x="50" y="116" width="300" height="28" rx="8" fill="#FCEFD8"/>
+  <text x="200" y="134" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" font-weight="500" fill="#856404">Messages with Dream Destiny are end-to-end encrypted</text>
+
+  <!-- User Outgoing Greeting Bubble -->
+  <path d="M160 165H370C375.5 165 380 169.5 380 175V210C380 215.5 375.5 220 370 220H170L155 228V175C155 169.5 159.5 165 160 165Z" fill="#D9FDD3"/>
+  <text x="175" y="190" font-family="'Plus Jakarta Sans', sans-serif" font-size="13" font-weight="500" fill="#0D0F10">Hi! I want to plan a quick weekend trip.</text>
+  <text x="350" y="212" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#667781">10:04 AM ✓✓</text>
+  
+  <!-- Bot Response Bubble -->
+  <rect x="20" y="240" width="340" height="150" rx="14" fill="#FFFFFF"/>
+  <text x="36" y="268" font-family="'Plus Jakarta Sans', sans-serif" font-size="13" font-weight="600" fill="#0B2345">Welcome to Dream Destiny!</text>
+  <text x="36" y="292" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" fill="#3B4A54">I'm your AI travel companion. I help you find trains, buses, flights, stays, and daily plans right here.</text>
+  <text x="36" y="332" font-family="'Plus Jakarta Sans', sans-serif" font-size="12" font-weight="500" fill="#0D0F10">Where would you like to depart from and visit?</text>
+  <text x="325" y="378" font-family="'Plus Jakarta Sans', sans-serif" font-size="10" fill="#667781">10:04 AM</text>
+  
+  <!-- Suggested Quick Reply Chips -->
+  <rect x="20" y="410" width="130" height="32" rx="16" fill="#FFFFFF" stroke="#79B66A" stroke-width="1.5"/>
+  <text x="85" y="430" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#27521D">Mumbai → Goa</text>
+
+  <rect x="160" y="410" width="140" height="32" rx="16" fill="#FFFFFF" stroke="#79B66A" stroke-width="1.5"/>
+  <text x="230" y="430" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#27521D">Delhi → Jaipur</text>
+
+  <!-- Placeholder Badge -->
+  <rect x="20" y="550" width="360" height="40" rx="10" fill="#0D0F10" fill-opacity="0.9"/>
+  <text x="200" y="574" text-anchor="middle" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#B7D7AD">STEP 1: START ON WHATSAPP (MOCKUP PLACEHOLDER)</text>
+</svg>

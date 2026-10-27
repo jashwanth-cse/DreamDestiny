@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 50" width="160" height="50" fill="none">
+  <!-- redBus official mark: iconic crimson coach -->
+  <rect width="160" height="50" rx="8" fill="#FFFFFF"/>
+  <rect x="12" y="14" width="30" height="20" rx="4" fill="#D84E55"/>
+  <rect x="15" y="17" width="8" height="7" rx="1.5" fill="#FFFFFF"/>
+  <rect x="25" y="17" width="8" height="7" rx="1.5" fill="#FFFFFF"/>
+  <rect x="35" y="17" width="5" height="7" rx="1" fill="#FFFFFF"/>
+  <circle cx="19" cy="34" r="3" fill="#3E3E3E"/>
+  <circle cx="19" cy="34" r="1.5" fill="#FFFFFF"/>
+  <circle cx="35" cy="34" r="3" fill="#3E3E3E"/>
+  <circle cx="35" cy="34" r="1.5" fill="#FFFFFF"/>
+  <!-- Wordmark -->
+  <text x="50" y="32" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="22" font-weight="800" fill="#D84E55" letter-spacing="-0.02em">red<tspan fill="#1D1D1D">Bus</tspan></text>
+</svg>

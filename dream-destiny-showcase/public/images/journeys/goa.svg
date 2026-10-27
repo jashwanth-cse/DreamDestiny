@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" fill="none">
+  <defs>
+    <linearGradient id="skyGoa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C5E3E7"/>
+      <stop offset="60%" stop-color="#E1EFF2"/>
+      <stop offset="100%" stop-color="#FCEFD8"/>
+    </linearGradient>
+    <linearGradient id="seaGoa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3A8A96"/>
+      <stop offset="70%" stop-color="#2D727C"/>
+      <stop offset="100%" stop-color="#E2D4B5"/>
+    </linearGradient>
+  </defs>
+  <!-- Sky -->
+  <rect width="800" height="280" fill="url(#skyGoa)"/>
+  <circle cx="220" cy="140" r="45" fill="#FFE0AA" opacity="0.8"/>
+  <!-- Sea Horizon -->
+  <rect y="240" width="800" height="150" fill="url(#seaGoa)"/>
+  <!-- Gentle waves -->
+  <path d="M0 320C140 316 280 324 420 320S700 316 800 320" stroke="#FFFFFF" stroke-width="2.5" opacity="0.6"/>
+  <path d="M0 345C160 340 320 350 480 344S720 340 800 345" stroke="#FFFFFF" stroke-width="2" opacity="0.4"/>
+  <!-- Golden Sand Shore -->
+  <path d="M0 370C200 365 400 380 800 375V500H0Z" fill="#E8D9BD"/>
+  <!-- Palm Trees -->
+  <g transform="translate(620, 180)">
+    <!-- Trunk 1 -->
+    <path d="M60 220C55 160 40 100 20 40" stroke="#705238" stroke-width="9" stroke-linecap="round"/>
+    <!-- Fronds -->
+    <path d="M20 40C-10 20 -40 30 -50 50" stroke="#326B28" stroke-width="4" stroke-linecap="round"/>
+    <path d="M20 40C5 10 -15 -10 -40 -10" stroke="#79B66A" stroke-width="4" stroke-linecap="round"/>
+    <path d="M20 40C30 5 50 -10 70 -5" stroke="#326B28" stroke-width="4" stroke-linecap="round"/>
+    <path d="M20 40C40 25 70 30 85 55" stroke="#79B66A" stroke-width="4" stroke-linecap="round"/>
+    <path d="M20 40C25 55 30 75 25 95" stroke="#326B28" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(710, 210) scale(0.8)">
+    <path d="M40 220C38 160 30 100 15 40" stroke="#705238" stroke-width="8" stroke-linecap="round"/>
+    <path d="M15 40C-10 20 -30 30 -40 50" stroke="#326B28" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M15 40C5 10 -10 -10 -30 -10" stroke="#79B66A" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M15 40C25 5 45 -10 60 -5" stroke="#326B28" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M15 40C35 25 60 30 70 55" stroke="#79B66A" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+  <!-- Small Sailboat in distance -->
+  <path d="M160 255L170 240L170 255H160Z" fill="#FFFFFF"/>
+  <path d="M156 257C162 257 178 257 182 257L178 261H160L156 257Z" fill="#0D0F10"/>
+  <!-- Badge -->
+  <rect x="24" y="24" width="210" height="32" rx="16" fill="#0B2345" fill-opacity="0.85"/>
+  <text x="36" y="45" font-family="'Plus Jakarta Sans', sans-serif" font-size="11" font-weight="600" fill="#FFFFFF" letter-spacing="0.04em">GOA • COASTAL TRAIL</text>
+</svg>
