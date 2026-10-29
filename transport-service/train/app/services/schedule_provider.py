@@ -102,7 +102,14 @@ class RedBusScheduleProvider:
             max_keepalive_connections=config.MAX_KEEPALIVE_CONNECTIONS,
             max_connections=config.MAX_CONNECTIONS,
         )
-        self._client = client or httpx.AsyncClient(http2=True, timeout=timeout, limits=limits)
+        if client is not None:
+            self._client = client
+        else:
+            try:
+                self._client = httpx.AsyncClient(http2=True, timeout=timeout, limits=limits)
+            except (ImportError, RuntimeError, Exception) as exc:
+                logger.warning(f"HTTP/2 client creation failed ({exc}), falling back to standard HTTP/1.1 client")
+                self._client = httpx.AsyncClient(timeout=timeout, limits=limits)
 
     def _parse_upstream_payload(self, raw_data: Dict[str, Any], train_no: str) -> Dict[str, Any]:
         """Defensively parse and normalize raw RedBus schedule JSON."""
