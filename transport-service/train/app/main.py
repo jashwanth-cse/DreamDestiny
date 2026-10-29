@@ -9,16 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from fastapi.exceptions import RequestValidationError
 
-from app.routes import stations, trains, availability
+from app.routes import stations, trains, availability, schedule
 from app.exceptions import (
     StationNotFoundError,
     InvalidRequestError,
+    TrainNotFoundError,
     UpstreamTimeoutError,
     UpstreamConnectionError,
     UpstreamServiceError,
     CircuitBreakerOpenError,
 )
 from app.services.availability_service import get_availability_service
+from app.services.schedule_service import get_schedule_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,6 +44,8 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down Transport Service, releasing HTTP resources...")
     avl_service = get_availability_service()
     await avl_service.aclose()
+    sched_service = get_schedule_service()
+    await sched_service.aclose()
     logger.info("Transport Service shutdown complete.")
 
 
@@ -49,11 +53,11 @@ async def lifespan(app: FastAPI):
 is_cloud_run = bool(os.getenv("K_SERVICE"))
 app_env = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "production" if is_cloud_run else "development")).lower()
 is_production = app_env in ("production", "prod") or is_cloud_run
-enable_docs = os.getenv("ENABLE_DOCS", "false" if is_production else "true").lower() == "true"
+enable_docs = os.getenv("ENABLE_DOCS", "true").lower() in ("true", "1", "yes")
 
 app = FastAPI(
     title="Transport Service API",
-    description="Production-ready FastAPI microservice for searching trains, stations, and live seat availability.",
+    description="Production-ready FastAPI microservice for searching trains, stations, schedules, and live seat availability.",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs" if enable_docs else None,
@@ -114,11 +118,19 @@ async def station_not_found_exception_handler(request: Request, exc: StationNotF
     )
 
 
+@app.exception_handler(TrainNotFoundError)
+async def train_not_found_exception_handler(request: Request, exc: TrainNotFoundError):
+    return JSONResponse(
+        status_code=404,
+        content={"success": False, "message": str(exc) or "Train not found"}
+    )
+
+
 @app.exception_handler(InvalidRequestError)
 async def invalid_request_exception_handler(request: Request, exc: InvalidRequestError):
     return JSONResponse(
         status_code=400,
-        content={"success": False, "message": "Invalid request"}
+        content={"success": False, "message": str(exc) or "Invalid request"}
     )
 
 
@@ -148,7 +160,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def upstream_timeout_handler(request: Request, exc: UpstreamTimeoutError):
     return JSONResponse(
         status_code=504,
-        content={"success": False, "message": "Upstream availability provider timed out."}
+        content={"success": False, "message": "Upstream schedule or availability provider timed out."}
     )
 
 
@@ -156,7 +168,7 @@ async def upstream_timeout_handler(request: Request, exc: UpstreamTimeoutError):
 async def circuit_breaker_handler(request: Request, exc: CircuitBreakerOpenError):
     return JSONResponse(
         status_code=503,
-        content={"success": False, "message": "Availability service is temporarily unavailable due to upstream outage."}
+        content={"success": False, "message": "Service is temporarily unavailable due to upstream outage."}
     )
 
 
@@ -165,7 +177,7 @@ async def circuit_breaker_handler(request: Request, exc: CircuitBreakerOpenError
 async def upstream_error_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=502,
-        content={"success": False, "message": "Upstream availability service error."}
+        content={"success": False, "message": "Upstream service error."}
     )
 
 
@@ -183,6 +195,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 app.include_router(stations.router, prefix="/api/v1/stations", tags=["Stations"])
 app.include_router(trains.router, prefix="/api/v1/trains", tags=["Trains"])
 app.include_router(availability.router, prefix="/api/v1/trains/availability", tags=["Availability"])
+app.include_router(schedule.router, prefix="/api/v1/trains", tags=["Schedule"])
 
 
 # Health & Readiness Probes
