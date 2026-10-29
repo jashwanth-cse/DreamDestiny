@@ -480,6 +480,14 @@ class TestSecurityEdgeCases:
         )
         assert resp.status_code == 400
 
+    def test_docs_hidden_by_default(self, client):
+        """Verify docs and openapi schema are hidden when docs are disabled."""
+        from app.main import app
+        if not app.docs_url:
+            assert client.get("/docs").status_code == 404
+            assert client.get("/openapi.json").status_code == 404
+            assert client.get("/redoc").status_code == 404
+
 
 # ── 9. Concurrent Load & Amplification Verification ──────────────────────────
 

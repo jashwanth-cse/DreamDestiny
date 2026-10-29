@@ -50,10 +50,16 @@ async def lifespan(app: FastAPI):
 
 
 # Environment & Production Detection
+# If APP_ENV is unset or empty, default strictly to "production" to protect internal APIs and schemas
+app_env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "production").strip().lower()
 is_cloud_run = bool(os.getenv("K_SERVICE"))
-app_env = os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "production" if is_cloud_run else "development")).lower()
-is_production = app_env in ("production", "prod") or is_cloud_run
-enable_docs = os.getenv("ENABLE_DOCS", "true").lower() in ("true", "1", "yes")
+is_production = (app_env in ("production", "prod")) or is_cloud_run
+
+# In production, docs (/docs, /redoc, /openapi.json) are strictly hidden by default
+if is_production:
+    enable_docs = os.getenv("ENABLE_DOCS", "false").strip().lower() in ("true", "1", "yes")
+else:
+    enable_docs = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("true", "1", "yes")
 
 app = FastAPI(
     title="Transport Service API",
