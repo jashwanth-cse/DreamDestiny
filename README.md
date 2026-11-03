@@ -68,7 +68,7 @@ Traditional travel planning is broken across 5+ disparate tabs: checking train a
 <div align="center">
 
 <p align="center">
-  <em>High-resolution captures of the live conversational flow inside WhatsApp (1312 × 1199 px, 1.09:1 aspect ratio)</em>
+  <em>Screenshots </em>
 </p>
 
 <table>
