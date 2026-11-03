@@ -13,21 +13,24 @@
 **Plan personalized multi-day journeys, compare trains, buses, and flights, and discover curated stays in seconds—all through a single chat.**
 
 <p align="center">
-  <a href="#-quick-start"><strong>Get Started »</strong></a> ·
-  <a href="#-how-it-works"><strong>How It Works »</strong></a> ·
-  <a href="#-system-architecture"><strong>System Architecture »</strong></a> ·
+  <a href="#-quick-start"><strong>Quick Start »</strong></a> ·
+  <a href="#-deployment-guide"><strong>Deployment Guide »</strong></a> ·
+  <a href="#-system-architecture"><strong>Architecture »</strong></a> ·
+  <a href="CONTRIBUTING.md"><strong>Contributing »</strong></a> ·
+  <a href="LICENSE"><strong>License »</strong></a> ·
   <a href="dream-destiny-showcase/"><strong>Showcase Website »</strong></a>
 </p>
 
 <!-- BADGES -->
 <p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-0B2345?style=for-the-badge" alt="License" /></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-79B66A?style=for-the-badge" alt="PRs Welcome" /></a>
   <img src="https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp" />
   <img src="https://img.shields.io/badge/Amazon_Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white" alt="Amazon Bedrock" />
-  <img src="https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
   <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
   <img src="https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-  <img src="https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white" alt="pnpm" />
-  <img src="https://img.shields.io/badge/License-MIT-0B2345?style=for-the-badge" alt="License" />
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+" />
 </p>
 
 <!-- VALUE PROPOSITION HIGHLIGHT -->
@@ -242,58 +245,207 @@ Dream Destiny v2.0/
 ## 🚀 Quick Start
 
 ### 1. Prerequisites
-- [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
+- [Docker](https://www.docker.com/) & [Docker Compose v2+](https://docs.docker.com/compose/)
 - [Python 3.11+](https://www.python.org/)
-- [Node.js 22+](https://nodejs.org/) & [pnpm 11+](https://pnpm.io/)
-- AWS Account with **Amazon Bedrock** model access enabled
+- [Node.js 22+](https://nodejs.org/) & [pnpm 10+](https://pnpm.io/)
+- AWS Account with **Amazon Bedrock** model access enabled (for AI Planner)
+
+---
 
 ### 2. Environment Configuration
 Clone the repository and copy the environment template:
 ```bash
-git clone https://github.com/your-username/dream-destiny.git
-cd dream-destiny
+git clone https://github.com/jashwanth-cse/DreamDestiny.git
+cd DreamDestiny
 cp .env.example .env
 ```
 
 Configure your API credentials in `.env`:
 ```dotenv
+# --- GENERAL & NETWORKING ---
+APP_ENV=development
+FRONTEND_ORIGIN=http://localhost:3000
+HTTP_TIMEOUT=20.0
+LLM_TIMEOUT=60.0
+
+# --- PROVIDER APIS ---
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+SERPAPI_API_KEY=your_serpapi_api_key_here
+BEDROCK_API_KEY=your_bedrock_api_key_here
+
 # --- WHATSAPP CLOUD API ---
-WHATSAPP_TOKEN=your_meta_access_token
-WHATSAPP_PHONE_NUMBER_ID=your_phone_id
-WHATSAPP_VERIFY_TOKEN=your_secure_verify_token
+WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
+WHATSAPP_VERIFY_TOKEN=dream_destiny_verify_token
+WHATSAPP_APP_SECRET=your_whatsapp_app_secret
+WHATSAPP_API_VERSION=v20.0
 
-# --- AWS BEDROCK ---
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_aws_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret
-BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
-
-# --- PROVIDER APIs ---
-SERPAPI_API_KEY=your_serpapi_key  # Google Flights / Hotels
-GOOGLE_MAPS_API_KEY=your_google_maps_key
+# --- MONITORING (DOZZLE) ---
+DOZZLE_USERNAME=admin
+DOZZLE_PASSWORD=dreamlogs123
 ```
 
+> 💡 *Note: If external API keys are omitted in development mode, microservices automatically operate with resilient fallbacks or local mock datasets.*
+
+---
+
 ### 3. Launch Services with Docker Compose
+
+Start the full containerized microservices stack, Redis cache, and log viewer:
 ```bash
 docker compose up --build -d
 ```
-All microservices will spin up with health checks:
-- WhatsApp Bot Gateway: `http://localhost:8000`
-- Planner Engine: `http://localhost:8001`
-- Transport Service: `http://localhost:8002`
-- Hotel Service: `http://localhost:8003`
 
-### 4. Run the Showcase Landing Page
+#### Microservices Directory & Health Endpoints
+
+| Service Name | Container Name | Local Port | Health Check Endpoint | Primary Responsibility |
+|:---|:---|:---:|:---|:---|
+| **Planner Service** | `dream-destiny-planner` | `8000` | `http://localhost:8000/health` | AI itinerary synthesis orchestrator |
+| **Tourism Service** | `dream-destiny-tourism` | `8001` | `http://localhost:8001/health` | Attractions, landmarks & Google Places POIs |
+| **Hotel Service** | `dream-destiny-hotel` | `8002` | `http://localhost:8002/health` | Curated accommodations & live pricing |
+| **Route Service** | `dream-destiny-route` | `8003` | `http://localhost:8003/health` | Road transit routes, distance & waypoints |
+| **Bus Service** | `dream-destiny-bus` | `8004` | `http://localhost:8004/health` | Intercity buses, AC Sleeper routes & fares |
+| **Train Service** | `dream-destiny-train` | `8005` | `http://localhost:8005/health` | Indian Railways schedules & station lookup |
+| **Flight Service** | `dream-destiny-flight` | `8006` | `http://localhost:8006/health` | Flight timetables & airfare comparison |
+| **WhatsApp Bot** | `dream-destiny-whatsapp-bot` | `8007` | `http://localhost:8007/health` | Ingress webhook, NLP state machine & PDF engine |
+| **Redis** | `dream-destiny-redis` | `6379` | `redis-cli ping` | Session state, lock deduplication & caching |
+| **Dozzle** | `dream-destiny-dozzle` | `9999` | `http://localhost:9999` | Real-time container log streaming viewer |
+
+---
+
+### 4. Running Microservices Natively (Development Mode)
+
+You can also run any microservice locally without Docker for step-through debugging:
+
+```bash
+# Example: Running WhatsApp Bot Service natively
+cd whatsapp-bot-service
+python -m venv .venv
+
+# Activate virtual environment
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+# Linux / macOS:
+source .venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8007 --reload
+```
+
+---
+
+### 5. Running the Showcase Landing Page
+
+The showcase website is built with **Next.js 16**, **TypeScript**, and **Tailwind CSS**:
+
 ```bash
 cd dream-destiny-showcase
 pnpm install
 pnpm dev
+```
+Open **`http://localhost:3000`** in your browser to view the interactive showcase.
 
-# Static production build & serve:
+To test the production static export:
+```bash
 pnpm build
 pnpm serve
 ```
-Open **`http://localhost:3000`** to view the live showcase!
+
+---
+
+### 6. Running the Automated Test Suite
+
+Run the full pytest suite across microservices to verify logic, state machines, and PDF generation:
+
+```bash
+# On Windows PowerShell:
+$env:PYTHONPATH="whatsapp-bot-service"; python -m pytest whatsapp-bot-service/tests/ -v
+
+# On Linux / macOS:
+PYTHONPATH="whatsapp-bot-service" pytest whatsapp-bot-service/tests/ -v
+```
+
+---
+
+## 🚢 Deployment Guide
+
+Dream Destiny is production-hardened for secure, scalable cloud deployment. It supports **1-command automated AWS Free Tier provisioning**, **production Docker Compose**, and **Cloudflare edge proxying**.
+
+### Production Architecture Highlights
+- **Single Public Entrypoint:** Port 80 (HTTP) and Port 443 (HTTPS) managed by NGINX with automatic SSL termination via Let's Encrypt (Certbot).
+- **Internal Network Isolation:** All 8 backend microservices run in an internal Docker bridge network (`dream-destiny-prod-net`) and are **never exposed to the public internet**.
+- **AWS Free Tier Optimized ($0/month):** Configured with swap memory management so 8 microservices, Redis, and NGINX run smoothly within an AWS `t3.micro`/`t2.micro` (1 GB RAM + 3 GB swap) envelope.
+
+---
+
+### Option A: Automated 1-Command AWS Free Tier Deployment
+
+The repository includes end-to-end cloud-init provisioning scripts that automate VPC lookup, Security Group creation, SSH key generation, and service startup on Ubuntu 24.04 LTS:
+
+#### On Windows (PowerShell):
+```powershell
+.\deploy\deploy_aws.ps1 -Region ap-south-1
+```
+
+#### On Linux / macOS / Git Bash:
+```bash
+chmod +x deploy/deploy_aws.sh
+./deploy/deploy_aws.sh ap-south-1
+```
+
+*For complete details, SSH management, and rollback commands, see [`deploy/README.md`](deploy/README.md).*
+
+---
+
+### Option B: Manual Production Deployment (Docker Compose)
+
+On your production server (EC2, Droplet, VPS, or bare-metal):
+
+1. Clone the repository and configure `.env`:
+   ```bash
+   git clone https://github.com/jashwanth-cse/DreamDestiny.git /opt/dream-destiny
+   cd /opt/dream-destiny
+   cp .env.example .env
+   # Edit .env with your domain and production keys
+   ```
+
+2. Generate basic auth credentials for the Dozzle log viewer:
+   ```bash
+   python3 -c "import os, hashlib, base64; u='admin'; p='your_secure_password'; print(f'{u}:{{SHA}}' + base64.b64encode(hashlib.sha1(p.encode()).digest()).decode())" > .htpasswd
+   ```
+
+3. Launch the production stack:
+   ```bash
+   docker compose -f docker-compose.prod.yml up --build -d
+   ```
+
+4. Obtain Let's Encrypt SSL certificates (Certbot):
+   ```bash
+   docker compose -f docker-compose.prod.yml run --rm certbot certonly --webroot -w /var/www/certbot -d yourdomain.com
+   docker compose -f docker-compose.prod.yml restart gateway
+   ```
+
+---
+
+### Option C: Cloudflare Edge Proxy (Optional)
+
+Deploy the Cloudflare Worker in `cloudflare/` for edge caching, low-latency API proxying, and global CDN acceleration:
+
+```bash
+cd cloudflare
+pnpm install -g wrangler
+wrangler deploy
+```
+
+---
+
+### Verifying Production Deployment
+
+Validate that all microservices are responding correctly through the NGINX reverse proxy:
+
+```bash
+python deploy/verify_deployment.py http://<YOUR_SERVER_IP_OR_DOMAIN>
+```
 
 ---
 
@@ -315,6 +467,7 @@ Dream Destiny pairs a modern travel-editorial aesthetic with WhatsApp conversati
 
 - **No Public DB Writes:** The showcase website is 100% static; user reviews query a read-only Firestore collection (`published == true`).
 - **Encrypted Messaging:** Conversations adhere to WhatsApp Cloud API end-to-end security standards.
+- **Zero In-Memory Leakage:** Itinerary PDFs are generated 100% in-memory with zero disk footprint.
 - **Zero Fabrication:** The assistant displays verified transport schedules and live availability data without fabricating booking promises.
 
 ---
@@ -331,12 +484,18 @@ Dream Destiny pairs a modern travel-editorial aesthetic with WhatsApp conversati
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'feat: Add AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+We welcome contributions from the community! Please see our **[CONTRIBUTING.md](CONTRIBUTING.md)** for detailed instructions on:
+- Setting up your local development environment.
+- Submitting bug reports and feature requests.
+- Branch naming and Conventional Commit standards.
+- Writing and executing unit tests.
+- Submitting Pull Requests for review.
+
+---
+
+## 📄 License
+
+Dream Destiny is open-source software licensed under the **[MIT License](LICENSE)**. Feel free to use, modify, and distribute it in accordance with the license conditions.
 
 ---
 

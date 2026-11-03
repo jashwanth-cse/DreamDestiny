@@ -17,6 +17,7 @@ __pycache__/
 
 # Environments
 .env
+.dev.vars
 .venv
 env/
 venv/
@@ -53,9 +54,11 @@ credentials/
 deploy/*.pem
 deploy/user_data.sh
 .env
+.dev.vars
 .env.*
 !.env.example
 planner-service/.env
+.dev.vars
 certbot/conf/*
 !certbot/conf/.gitkeep
 certbot/www/*
