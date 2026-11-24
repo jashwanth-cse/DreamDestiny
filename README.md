@@ -68,84 +68,93 @@ Traditional travel planning is broken across 5+ disparate tabs: checking train a
 <div align="center">
 
 <p align="center">
-  <em>Screenshots </em>
+  <em>Authentic production WhatsApp conversation captures illustrating end-to-end itinerary generation from conversational onboarding to real-time transit adaptation and full multi-day itinerary synthesis.</em>
 </p>
 
 <table>
   <thead>
     <tr style="background: #F2F6F6;">
       <th align="center" width="33.33%">
-        <h3>1️⃣ Greeting & Onboarding</h3>
+        <h3>1️⃣ Onboarding & Dates</h3>
+        <p><sub><em>Origin & Destination • Dates • Group Size</em></sub></p>
       </th>
       <th align="center" width="33.33%">
-        <h3>2️⃣ Transit & Attractions</h3>
+        <h3>2️⃣ Transit & Availability</h3>
+        <p><sub><em>Multi-Modal Feeds • RAC Warning • Re-route</em></sub></p>
       </th>
       <th align="center" width="33.33%">
-        <h3>3️⃣ Day-Wise Itinerary</h3>
+        <h3>3️⃣ Synthesized Itinerary</h3>
+        <p><sub><em>Full Day-by-Day • Maps • Budget Breakdown</em></sub></p>
       </th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td align="center" valign="top">
-        <a href="./img1.png" target="_blank" rel="noopener noreferrer">
-          <img 
-            src="./img1.png" 
-            alt="Step 1: Greeting and Onboarding conversation" 
-            width="100%" 
-            style="border-radius: 14px; border: 1px solid rgba(13, 15, 16, 0.1); box-shadow: 0 8px 24px rgba(13, 15, 16, 0.08);"
-          />
-        </a>
+      <td align="left" valign="top" width="33.33%">
+        <ul>
+          <li><strong>Zero Friction:</strong> Conversational initiation directly inside WhatsApp with no apps or signups.</li>
+          <li><strong>Intent Parsing:</strong> Extracts origin (<em>Chennai</em>), destination (<em>Hyderabad</em>), and preferred dates.</li>
+          <li><strong>Quick-Reply Chips:</strong> Tap interactive quick buttons (<em>Solo</em>, <em>Couple</em>, <em>Family</em>) for seamless mobile ergonomics.</li>
+        </ul>
       </td>
-      <td align="center" valign="top">
-        <a href="./img2.png" target="_blank" rel="noopener noreferrer">
-          <img 
-            src="./img2.png" 
-            alt="Step 2: Transport Options & Tourist Attractions discovery" 
-            width="100%" 
-            style="border-radius: 14px; border: 1px solid rgba(13, 15, 16, 0.1); box-shadow: 0 8px 24px rgba(13, 15, 16, 0.08);"
-          />
-        </a>
+      <td align="left" valign="top" width="33.33%">
+        <ul>
+          <li><strong>Multi-Modal Discovery:</strong> Indian Railways via <em>ixigo</em>, intercity buses via <em>redBus</em>, and domestic flights.</li>
+          <li><strong>Live Availability Checks:</strong> Detects sold-out berths and warns: <em>"⚠️ Berth is not available, only RAC seats available."</em></li>
+          <li><strong>Dynamic Re-Routing:</strong> One-tap <em>"Change Transport"</em> pivots instantly to Volvo AC Sleeper coaches.</li>
+        </ul>
       </td>
-      <td align="center" valign="top">
-        <a href="./img3.png" target="_blank" rel="noopener noreferrer">
-          <img 
-            src="./img3.png" 
-            alt="Step 3: Day-Wise Itinerary Display and Blueprint" 
-            width="100%" 
-            style="border-radius: 14px; border: 1px solid rgba(13, 15, 16, 0.1); box-shadow: 0 8px 24px rgba(13, 15, 16, 0.08);"
-          />
-        </a>
+      <td align="left" valign="top" width="33.33%">
+        <ul>
+          <li><strong>LLM Blueprint:</strong> Hour-by-hour schedule synthesized via <em>Amazon Bedrock</em> with timing buffers.</li>
+          <li><strong>1-Tap Maps:</strong> Direct Google Maps navigation anchors for Charminar, Golconda Fort, and Ramoji Film City.</li>
+          <li><strong>Transparent Costing:</strong> Complete itemized transit & stay tally (~₹5,468) plus conversational refinement prompts.</li>
+        </ul>
       </td>
     </tr>
     <tr>
-      <td align="left" valign="top">
-        <ul>
-          <li><strong>Zero Friction:</strong> Chat begins immediately in WhatsApp; no separate app or account creation.</li>
-          <li><strong>Intent Extraction:</strong> Understands natural conversational trip ideas, dates, and budgets.</li>
-          <li><strong>Quick-Reply Chips:</strong> Contextual suggestions guide user inputs without typing friction.</li>
-        </ul>
+      <td align="center" valign="top" width="33.33%">
+        <a href="./snapshot_1.jpg" target="_blank" rel="noopener noreferrer">
+          <img 
+            src="./snapshot_1.jpg" 
+            alt="Step 1: Conversational Onboarding and Date Selection in WhatsApp (1080x3236)" 
+            width="100%" 
+            style="border-radius: 12px; border: 1px solid rgba(13, 15, 16, 0.12); box-shadow: 0 8px 24px rgba(13, 15, 16, 0.08); display: block;"
+          />
+        </a>
+        <br />
+        <sub>🔍 <em>1080 × 3236 px — Click to expand full resolution</em></sub>
       </td>
-      <td align="left" valign="top">
-        <ul>
-          <li><strong>Multi-Modal Transit:</strong> Indian Railways schedules via <em>ixigo</em>, intercity buses via <em>redBus</em>, & flights.</li>
-          <li><strong>Curated Spots:</strong> Key cultural landmarks and viewpoints mapped via <em>Google Maps</em>.</li>
-          <li><strong>Live Timings:</strong> Direct station/stop information and departure windows.</li>
-        </ul>
+      <td align="center" valign="top" width="33.33%">
+        <a href="./snapshot_2.jpg" target="_blank" rel="noopener noreferrer">
+          <img 
+            src="./snapshot_2.jpg" 
+            alt="Step 2: Real-time Transit Discovery and RAC Seat Warning in WhatsApp (1080x5454)" 
+            width="100%" 
+            style="border-radius: 12px; border: 1px solid rgba(13, 15, 16, 0.12); box-shadow: 0 8px 24px rgba(13, 15, 16, 0.08); display: block;"
+          />
+        </a>
+        <br />
+        <sub>🔍 <em>1080 × 5454 px — Click to expand full resolution</em></sub>
       </td>
-      <td align="left" valign="top">
-        <ul>
-          <li><strong>Generative Blueprint:</strong> Hour-by-hour schedules structured by <em>Amazon Bedrock</em>.</li>
-          <li><strong>Stay Recommendations:</strong> Verified lodging and price indicators via <em>Google Hotels</em>.</li>
-          <li><strong>Conversational Tweaks:</strong> Simply reply <em>"More relaxed"</em> or <em>"Budget stays"</em> to re-plan.</li>
-        </ul>
+      <td align="center" valign="top" width="33.33%">
+        <a href="./snapshot_3.jpg" target="_blank" rel="noopener noreferrer">
+          <img 
+            src="./snapshot_3.jpg" 
+            alt="Step 3: Complete 4-Day Day-by-Day Itinerary and Cost Blueprint in WhatsApp (1080x10704)" 
+            width="100%" 
+            style="border-radius: 12px; border: 1px solid rgba(13, 15, 16, 0.12); box-shadow: 0 8px 24px rgba(13, 15, 16, 0.08); display: block;"
+          />
+        </a>
+        <br />
+        <sub>🔍 <em>1080 × 10704 px — Click to expand full resolution</em></sub>
       </td>
     </tr>
   </tbody>
 </table>
 
 <p align="center">
-  <sub>💡 <em>Tip: Click any screenshot to view the full 1312×1199 high-resolution capture.</em></sub>
+  <sub>💡 <em>Tip: All screenshots are full-resolution captures with intrinsic 1080px width, rendered with natural aspect ratios without stretching or cropping. Click any screenshot to open the raw uncompressed asset.</em></sub>
 </p>
 
 </div>
