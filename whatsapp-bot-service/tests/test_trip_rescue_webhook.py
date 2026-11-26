@@ -301,7 +301,7 @@ def test_missed_return_bus_uses_history_and_does_not_repeat_question(monkeypatch
                 "next_question": None if "traffic" in message else "Where are you now?",
                 "ready_to_replan": "traffic" in message}
         async def propose(_trip, _itinerary, change, *_args, **_kwargs):
-            assert "missed return bus traffic" in change
+            assert change == "i left my return bus due to traffic"
             return {"status": "ready", "change_kind": "cancellation", "options": [
                 {"id": "return:bus:1", "title": "Next bus", "price": 1000,
                  "reason": "Return bus option", "warnings": []},
@@ -379,6 +379,57 @@ def test_rescue_reply_loop_guard_switches_to_list(monkeypatch):
         await service._send(session, "Where are you now?")
         assert whatsapp_client._sent_messages_log[-1]["interactive"]["type"] == "list"
         assert session.rescue_last_bot_reply != "Where are you now?"
+    asyncio.run(run())
+
+
+def test_place_delay_preserves_original_words_and_matches_itinerary_landmark(monkeypatch):
+    async def run():
+        monkeypatch.setattr(settings, "app_env", "test")
+        monkeypatch.setattr(settings, "trip_rescue_enabled", True)
+        monkeypatch.setattr(settings, "trip_rescue_contextual_enabled", False)
+        redis_store._client = None
+        redis_store._memory_cache.clear()
+        firestore_store._db = None
+        firestore_store._trips.clear()
+        firestore_store._itineraries.clear()
+        whatsapp_client._sent_messages_log.clear()
+        trip = TripRecord(wa_id="919900000001", conversation_id="conv_place", origin="Chennai",
+            destination="Hyderabad", start_date="2026-11-26", end_date="2026-11-28", travelers=1,
+            trip_request_data={"origin": "Chennai", "destination": "Hyderabad",
+                "start_date": "2026-11-26", "end_date": "2026-11-28"})
+        itinerary = {"days": [{"date": "2026-11-26", "activities": [
+            {"attraction_name": "Chowmahalla Palace", "start_time": "15:00"}]}]}
+        await firestore_store.save_trip(trip)
+        await firestore_store.save_itinerary_version(trip.wa_id, trip.trip_id,
+            ItineraryVersionRecord(itinerary_data=itinerary))
+        await redis_store.save_session(UserSession(wa_id=trip.wa_id,
+            current_trip_id=trip.trip_id, state="COMPLETED"))
+        reported = "there was a delay at chomanah palace and the time is 4 oclock now"
+        async def extract(_trip, saved_itinerary, *_args):
+            assert saved_itinerary["days"][0]["activities"][0]["attraction_name"] == "Chowmahalla Palace"
+            return {"disruption_type": "delayed", "affected_item": "place",
+                "cause": None, "already_arrived": True, "missing_info": [],
+                "next_question": None, "ready_to_replan": True}
+        async def propose(_trip, _itinerary, change, *_args, **kwargs):
+            assert change == reported
+            assert kwargs["extracted_fields"]["affected_item"] == "place"
+            assert _args[-1]["address"] == "Chowmahalla Palace, Hyderabad"
+            return {"status": "ready", "change_kind": "place_delay", "options": [
+                {"id": "nearby:activity:museum", "category": "experience",
+                 "title": "Nearby Museum", "source_id": "museum", "price": None,
+                 "reason": "12 min drive from your current landmark", "warnings": [
+                     "Opening hours unverified"]}]}
+        async def word(*_args):
+            return "1. Nearby Museum is 12 minutes away. Check opening hours. Which option should I review?"
+        monkeypatch.setattr(planner_gateway, "extract_recovery", extract)
+        monkeypatch.setattr(planner_gateway, "propose_recovery", propose)
+        monkeypatch.setattr(planner_gateway, "word_recovery_options", word)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            assert (await client.post("/webhook", json=_webhook("pl1", "Trip Rescue"))).status_code == 200
+            assert (await client.post("/webhook", json=_webhook("pl2", reported))).status_code == 200
+        reply = str(whatsapp_client._sent_messages_log[-1])
+        assert "Nearby Museum" in reply
+        assert "TGSRTC" not in reply and "Chennai to Hyderabad" not in reply
     asyncio.run(run())
 
 

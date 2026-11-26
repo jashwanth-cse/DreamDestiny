@@ -10,6 +10,10 @@ For a missed return bus, the bot can ask one specific question (for example, cur
 
 Manual WhatsApp check with a saved active Hyderabad trip: send `Trip Rescue` → `i left the return bus` → expect one question such as `Where are you now?` → send `i left my return bus due to traffic` → expect return-leg alternatives or a clear provider-unavailable message, never the first question repeated. Send `Trip Rescue` again and `train is cancelled` to check train interpretation. For the loop guard, send `gibberish` twice; the second response should be a list with Missed transport, Delay, Cancellation, and Change plan. If the selected trip is over, Trip Rescue reports that separately and does not suggest expired travel.
 
+For a sightseeing delay, the Bedrock context now includes bounded itinerary days and activity names as well as transport. The bot preserves the original traveler message and sends the structured affected item separately. A delayed `place` is routed only to nearby Google Places attractions and Routes travel times, with no intercity transport alternatives. If the traveler says they are at a venue whose name approximately matches a saved activity, the bot uses that saved name as the landmark for Google geocoding; otherwise it asks for a location pin. Google sometimes categorizes travel agencies as attractions, so nearby sightseeing filters agency-like businesses and duplicate names. Opening hours and entry tickets are still unverified.
+
+To replay the reported case, use a saved Hyderabad itinerary containing `Chowmahalla Palace`, then send `Trip Rescue` → `there was a delay at chomanah palace and the time is 4 oclock now`. Expect nearby sightseeing options or a precise location request. You should not see Chennai–Hyderabad buses or missed-ticket refund advice.
+
 Trip Rescue is an opt-in extension to the existing WhatsApp trip planner. It is **off by default** (`TRIP_RESCUE_ENABLED=false`). The original `POST /plan`, onboarding, PDF, and review flows are unchanged when the flag is off.
 
 ## Contextual auto-recovery (separate opt-in)

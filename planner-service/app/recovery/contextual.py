@@ -13,7 +13,7 @@ from app.recovery.models import (AgentTrace, Evidence, RecoveryLocation, Recover
 from app.recovery.nearby import NearbyProvider, NearbySearchError
 from app.schemas.context import TripContext
 
-ALLOWED_KINDS = {"delay", "arrival_delay", "cancellation", "closure", "preference",
+ALLOWED_KINDS = {"delay", "arrival_delay", "place_delay", "cancellation", "closure", "preference",
                  "stay_problem", "safety", "unknown"}
 ALLOWED_TOOLS = {"mobility", "hotels", "attractions", "nearby"}
 INDIA_TZ = ZoneInfo("Asia/Kolkata")
@@ -84,9 +84,12 @@ class ContextualRecoveryService:
             kind = classify_change(request.change)
         if classify_change(request.change) == "arrival_delay":
             kind = "arrival_delay"
+        if (request.extracted_fields.get("affected_item") == "place" and
+                request.extracted_fields.get("disruption_type") == "delayed"):
+            kind = "place_delay"
         requested_tools = raw.get("tools") if isinstance(raw, dict) else None
         tools = [x for x in requested_tools if isinstance(x, str) and x in ALLOWED_TOOLS] if isinstance(requested_tools, list) else []
-        if kind == "arrival_delay":
+        if kind in {"arrival_delay", "place_delay"}:
             tools = ["nearby"]
         elif re.search(r"\b(near me|nearest|nearby|around me|close to me)\b", request.change.casefold()):
             tools = ["nearby"]
@@ -122,6 +125,20 @@ class ContextualRecoveryService:
             sights_brief = [{"id": p["id"], "name": p["name"],
                              "maps_url": p["maps_url"], "travel_minutes": p["travel_minutes"]}
                             for p in sights[:2]]
+            if kind == "place_delay":
+                reported = (request.current_location.address or "").split(",")[0].casefold()
+                options = [RecoveryOption(
+                    id=f"nearby:activity:{p['id']}", category="experience", title=p["name"],
+                    reason=f"{p['travel_minutes']} min drive from your current landmark",
+                    source_id=p["id"], evidence=evidence.model_copy(),
+                    travel_minutes=p["travel_minutes"], distance_km=p["distance_km"],
+                    maps_url=p["maps_url"],
+                    warnings=["Opening hours and entry tickets are unverified"],
+                ) for p in sights if p["name"].casefold() != reported and p["travel_minutes"] <= 45][:3]
+                return options, RecoveryLocation(latitude=location.latitude, longitude=location.longitude,
+                    address=request.current_location.address or location.address), [AgentTrace(agent="local_discovery",
+                    tools=["google_places", "routes_matrix"],
+                    considered=len(sights), selected=[o.id for o in options])]
             options = [RecoveryOption(
                 id=f"nearby:hotel:{p['id']}", category="nearby_stay", title=p["name"],
                 reason=f"{p['travel_minutes']} min drive from your location",

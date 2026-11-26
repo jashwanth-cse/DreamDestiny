@@ -155,3 +155,23 @@ def test_invalid_model_choice_with_multiple_candidates_does_not_auto_update():
         assert result.status == "no_verified_options"
         assert result.recommended_option_id is None
     asyncio.run(run())
+
+
+def test_contextual_place_delay_ignores_model_request_for_transport():
+    async def run():
+        model = ScriptedModel(
+            {"kind": "delay", "tools": ["mobility"], "direction": "outbound",
+             "needs_location": False},
+            {"id": "nearby:activity:sight-1", "why": "10 min drive",
+             "activity_to_replace": None})
+        service = ContextualRecoveryService(SelectiveOrchestrator(), model,
+            now=lambda: datetime(2026, 11, 26, tzinfo=timezone.utc), nearby=NearbyStub())
+        result = await service.recover(RecoveryRequest(trip=_trip(),
+            change="there was a delay at chomanah palace and the time is 4 oclock now",
+            extracted_fields={"disruption_type": "delayed", "affected_item": "place"},
+            current_location=RecoveryLocation(address="Chowmahalla Palace, Hyderabad")))
+        assert result.status == "ready"
+        assert result.change_kind == "place_delay"
+        assert result.recommended_option_id == "nearby:activity:sight-1"
+        assert all(o.category == "experience" for o in result.options)
+    asyncio.run(run())

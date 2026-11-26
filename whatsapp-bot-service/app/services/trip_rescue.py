@@ -10,6 +10,7 @@ import json
 import copy
 import uuid
 import re
+from difflib import SequenceMatcher
 
 from app.clients.planner_gateway import planner_gateway, PlannerGatewayError
 from app.config import settings
@@ -41,11 +42,24 @@ def _remember(session: UserSession, role: str, text: str) -> None:
         session.rescue_history = session.rescue_history[-10:]
 
 
-def _canonical_change(fields: dict) -> str:
-    kind = fields.get("disruption_type", "unknown")
-    item = str(fields.get("affected_item", "unknown")).replace("_", " ")
-    cause = str(fields.get("cause") or "")[:120]
-    return f"{kind} {item} {cause}".strip()
+def _mentioned_itinerary_place(message: str, itinerary: dict) -> str | None:
+    """Resolve a misspelled reported venue only against this trip's own activities."""
+    words = re.findall(r"[a-z0-9]+", message.casefold())
+    best_name, best_score = None, 0.0
+    for day in (itinerary.get("days") or [])[:7]:
+        for activity in (day.get("activities") or [])[:10]:
+            name = activity.get("attraction_name") or ""
+            target = " ".join(re.findall(r"[a-z0-9]+", name.casefold()))
+            size = len(target.split())
+            if not target or not size:
+                continue
+            for width in {max(1, size - 1), size, size + 1}:
+                for start in range(max(0, len(words) - width + 1)):
+                    candidate = " ".join(words[start:start + width])
+                    score = SequenceMatcher(None, candidate, target).ratio()
+                    if score > best_score:
+                        best_name, best_score = name, score
+    return best_name if best_score >= 0.72 else None
 
 
 def _utc(value: str) -> datetime:
@@ -369,7 +383,8 @@ class TripRescueService:
                 await self._send(session, str(question)[:180])
                 return True
             session.state = ConversationState.RECOVERY_CHANGE
-            session.pending_recovery_change = _canonical_change(fields)
+            # Keep the traveler's actual words. The planner uses extracted_fields for routing.
+            session.pending_recovery_change = message
             await redis_store.save_session(session)
 
         if session.state == ConversationState.RECOVERY_CHANGE and _already_arrived_late(text):
@@ -395,6 +410,13 @@ class TripRescueService:
                 else:
                     await self._send(session, "Please share your WhatsApp location pin or type a nearby landmark.")
                     return True
+            if location is None and session.rescue_fields.get("affected_item") == "place":
+                reported = " ".join(turn["text"] for turn in session.rescue_history
+                                    if turn.get("role") == "user")
+                if re.search(r"\b(at|near)\b", reported.casefold()):
+                    matched = _mentioned_itinerary_place(reported, version.itinerary_data)
+                    if matched:
+                        location = {"address": f"{matched}, {trip.destination}"}
             try:
                 request = TripRequest.model_validate(trip.trip_request_data)
                 if settings.trip_rescue_contextual_enabled:
@@ -419,8 +441,8 @@ class TripRescueService:
                 await self._send(session, "I couldn't check current alternatives. Your itinerary is unchanged. Please try again shortly.")
                 return True
             if result.get("status") == "needs_clarification":
-                if settings.trip_rescue_contextual_enabled and (
-                    result.get("change_kind") == "arrival_delay" or "location" in (result.get("clarification") or "").casefold()):
+                if (result.get("change_kind") in {"arrival_delay", "place_delay"} or
+                    "location" in (result.get("clarification") or "").casefold()):
                     session.pending_recovery_change = change
                     session.state = ConversationState.RECOVERY_LOCATION
                     await redis_store.save_session(session)
@@ -547,7 +569,10 @@ class TripRescueService:
                 refreshed = await planner_gateway.propose_recovery(
                     TripRequest.model_validate(trip.trip_request_data), current.itinerary_data,
                     run.change, trip.commitments, trip.trip_id, session.correlation_id,
-                    run.result.get("location"))
+                    run.result.get("location"),
+                    **({"rescue_history": session.rescue_history,
+                        "rescue_history_summary": session.rescue_history_summary,
+                        "extracted_fields": session.rescue_fields} if session.rescue_fields else {}))
                 fresh_option = next((o for o in refreshed.get("options", []) if o["id"] == option["id"]), None)
                 recheck_fields = (("source_id", "category") if option["id"].startswith("nearby:") else
                                   ("price", "currency", "departure_time", "arrival_time", "source_id", "warnings"))

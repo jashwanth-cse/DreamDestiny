@@ -92,7 +92,7 @@ class AgentTrace(BaseModel):
 
 class RecoveryResult(BaseModel):
     status: Literal["ready", "needs_clarification", "no_verified_options"]
-    change_kind: Literal["delay", "arrival_delay", "cancellation", "closure", "preference", "stay_problem", "safety", "unknown"]
+    change_kind: Literal["delay", "arrival_delay", "place_delay", "cancellation", "closure", "preference", "stay_problem", "safety", "unknown"]
     affected_commitment_ids: list[str] = Field(default_factory=list)
     clarification: str | None = None
     options: list[RecoveryOption] = Field(default_factory=list)

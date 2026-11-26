@@ -24,7 +24,21 @@ class RecoveryService:
         self.now = now or (lambda: datetime.now(timezone.utc))
 
     async def recover(self, request: RecoveryRequest) -> RecoveryResult:
-        kind = classify_change(request.change)
+        fields = request.extracted_fields
+        disruption = fields.get("disruption_type")
+        affected_item = fields.get("affected_item")
+        if affected_item == "place" and disruption == "delayed":
+            kind = "place_delay"
+        elif disruption in {"missed", "cancelled"}:
+            kind = "cancellation"
+        elif disruption == "delayed":
+            kind = "delay"
+        elif disruption == "closed":
+            kind = "closure"
+        elif disruption == "preference_change":
+            kind = "preference"
+        else:
+            kind = classify_change(request.change)
         if kind == "unknown":
             return RecoveryResult(status="needs_clarification", change_kind="unknown",
                                   clarification="What changed: a delay, cancellation, closure, or preference? Include the affected booking or place.")
@@ -34,6 +48,8 @@ class RecoveryService:
                                   clarification="This saved trip has ended. Please start a new trip for new travel dates.")
         if kind == "arrival_delay":
             return await self._recover_arrival(request)
+        if kind == "place_delay":
+            return await self._recover_place_delay(request)
         matched = [c for c in request.commitments if c.title.casefold() in request.change.casefold()]
         if not matched and kind in {"delay", "cancellation"}:
             transports = sorted((c for c in request.commitments if c.kind == "transport" and c.starts_at),
@@ -59,7 +75,8 @@ class RecoveryService:
             })
         context = await self.orchestrator.build_context(lookup_trip)
         fetched_at = self.now()
-        direction = "return" if re.search(r"\b(return|back home|homebound)\b", request.change.casefold()) else "outbound"
+        direction = ("return" if affected_item == "return_bus" or
+                     re.search(r"\b(return|back home|homebound)\b", request.change.casefold()) else "outbound")
         tools = ContextTools(context, fetched_at, direction)
         rescue_context = self._model_context(request)
         # Independent specialists execute concurrently; the supervisor combines only
@@ -98,6 +115,36 @@ class RecoveryService:
                 "history_summary": request.rescue_history_summary,
                 "history": request.rescue_history[-10:],
                 "extracted_fields": request.extracted_fields}
+
+    async def _recover_place_delay(self, request: RecoveryRequest) -> RecoveryResult:
+        if request.current_location is None:
+            return RecoveryResult(status="needs_clarification", change_kind="place_delay",
+                clarification="Where are you now? Share a WhatsApp location pin or a precise nearby landmark so I can adjust sightseeing around you.")
+        try:
+            location, _hotels, sights = await self.nearby.search(
+                request.current_location, request.trip.destination)
+        except NearbySearchError as exc:
+            return RecoveryResult(status="needs_clarification", change_kind="place_delay",
+                                  clarification=str(exc))
+        now = self.now()
+        reported = (request.current_location.address or "").split(",")[0].casefold()
+        options = [RecoveryOption(
+            id=f"nearby:activity:{p['id']}", category="experience", title=p["name"],
+            reason=f"{p['travel_minutes']} min drive from your current landmark",
+            source_id=p["id"], travel_minutes=p["travel_minutes"],
+            distance_km=p["distance_km"], maps_url=p["maps_url"],
+            evidence=Evidence(provider="Google Places and Routes", fetched_at=now,
+                valid_until=now + timedelta(minutes=15), source_status="search_result"),
+            warnings=["Opening hours, entry tickets and travel time may change"],
+        ) for p in sights if p["name"].casefold() != reported and p["travel_minutes"] <= 45][:3]
+        return RecoveryResult(
+            status="ready" if options else "no_verified_options", change_kind="place_delay",
+            options=options,
+            location=RecoveryLocation(latitude=location.latitude, longitude=location.longitude,
+                                      address=request.current_location.address or location.address),
+            clarification=None if options else "I could not verify nearby sightseeing alternatives. Your itinerary is unchanged.",
+            expires_at=min((o.evidence.valid_until for o in options), default=None),
+        )
 
     async def _recover_arrival(self, request: RecoveryRequest) -> RecoveryResult:
         if request.current_location is None:

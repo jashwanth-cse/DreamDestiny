@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
 from math import asin, cos, radians, sin, sqrt
 
@@ -15,7 +16,8 @@ GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 PLACES_URL = "https://places.googleapis.com/v1/places:searchNearby"
 MATRIX_URL = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
 PLACE_FIELDS = ("places.id,places.displayName,places.formattedAddress,places.location,"
-                "places.googleMapsUri,places.businessStatus,places.rating,places.userRatingCount")
+                "places.googleMapsUri,places.businessStatus,places.rating,places.userRatingCount,"
+                "places.primaryType,places.types")
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,12 @@ class NearbyProvider:
             if (not place.get("id") or not place.get("displayName", {}).get("text")
                     or point.get("latitude") is None or point.get("longitude") is None
                     or place.get("businessStatus") not in (None, "OPERATIONAL")):
+                continue
+            if place_type == "tourist_attraction" and (
+                    place.get("primaryType") in {"travel_agency", "home_goods_store", "gift_shop", "store"} or
+                    "travel_agency" in (place.get("types") or []) or
+                    re.search(r"\b(travels?|tours?|tickets?|booking|agency)\b",
+                              place["displayName"]["text"], re.IGNORECASE)):
                 continue
             result.append({
                 "id": place["id"], "name": place["displayName"]["text"],
@@ -138,7 +146,13 @@ class NearbyProvider:
                 routed = await self._routes(client, location, (hotels[:8] + sights[:8]))
                 hotel_ids = {p["id"] for p in hotels}
                 routed_hotels = [p for p in routed if p["id"] in hotel_ids]
-                routed_sights = [p for p in routed if p["id"] not in hotel_ids]
+                routed_sights = []
+                seen_sight_names = set()
+                for place in routed:
+                    name = re.sub(r"\s+", " ", place["name"].casefold()).strip()
+                    if place["id"] not in hotel_ids and name not in seen_sight_names:
+                        routed_sights.append(place)
+                        seen_sight_names.add(name)
                 return location, routed_hotels, routed_sights
         except httpx.HTTPError as exc:
             raise NearbySearchError("Google Places or Routes is temporarily unavailable.") from exc
