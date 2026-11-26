@@ -8,6 +8,7 @@ from app.clients.transport_client import BusClient, TrainClient
 from app.orchestration.trip_orchestrator import TripOrchestrator
 from app.recovery.models import RecoveryRequest, RecoveryResult
 from app.recovery.service import RecoveryService
+from app.recovery.contextual import ContextualRecoveryService
 from app.services.llm.llm_client import BedrockLLMClient
 
 router = APIRouter(prefix="/v1/recovery", tags=["Trip Rescue"])
@@ -22,7 +23,11 @@ def get_recovery_service():
 @router.post("", response_model=RecoveryResult)
 async def propose_recovery(request: RecoveryRequest):
     try:
-        return await get_recovery_service().recover(request)
+        service = get_recovery_service()
+        if request.contextual:
+            return await ContextualRecoveryService(service.orchestrator, service.mobility.llm,
+                                                   nearby=service.nearby).recover(request)
+        return await service.recover(request)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail="Recovery model is not configured") from exc
     except Exception as exc:

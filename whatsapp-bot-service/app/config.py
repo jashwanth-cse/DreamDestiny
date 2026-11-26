@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     lock_timeout_seconds: float = 10.0
     idempotency_ttl_seconds: int = 86400  # 24 hours
     trip_rescue_enabled: bool = False
+    trip_rescue_contextual_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

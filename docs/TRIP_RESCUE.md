@@ -2,6 +2,19 @@
 
 Trip Rescue is an opt-in extension to the existing WhatsApp trip planner. It is **off by default** (`TRIP_RESCUE_ENABLED=false`). The original `POST /plan`, onboarding, PDF, and review flows are unchanged when the flag is off.
 
+## Contextual auto-recovery (separate opt-in)
+
+Set both `TRIP_RESCUE_ENABLED=true` and `TRIP_RESCUE_CONTEXTUAL_ENABLED=true` to use the contextual journey. The original choice-and-approval journey remains available when the contextual flag is false.
+
+1. `Trip Rescue` lists up to three of the traveler's saved trips. Selecting one confirms the trip before any disruption is processed.
+2. The traveler describes what happened in free text. Bedrock receives a compact view of the selected trip: dates, current transport and stay, a few itinerary activities, and reported commitments. Its first structured response classifies the issue and requests only the relevant tools. An already-arrived delay is forced to nearby discovery even if the model misclassifies it.
+3. Read-only provider agents query only the needed domains: bus/train/flight, fresh SerpApi hotels, fresh Google Places attractions, or nearby Places plus Routes. Location-dependent incidents ask for a WhatsApp pin or precise landmark. The second Bedrock response must choose an ID from those actual results and can name one existing activity to replace. The supervisor rejects invented IDs and unsupported claims; no provider result means no itinerary change.
+4. The bot sends one grounded recommendation and automatically versions the **suggested itinerary** using the existing Firestore transaction, after the trip was confirmed. The update never purchases, cancels, refunds, or changes a supplier booking. A reported booked activity is preserved. An unchanged or stale trip cannot be overwritten.
+
+The two model requests carry bounded JSON rather than the full itinerary or raw provider payloads. The normal planner route and original Trip Rescue flow are unchanged by default. Provider results are search data; hotel room availability, refund rules, and attraction opening hours must still be confirmed with the supplier. This mode is reactive to a traveler message; continuous background monitoring is not implemented.
+
+For a local test with provider/model mocks, run the planner and WhatsApp bot test commands below. For a live WhatsApp test after enabling the flags: send `Trip Rescue`, tap the intended saved trip, describe a disruption such as `My hotel room is dirty`, and check that the bot sends one sourced suggestion and a new itinerary version without an extra approval button. For `The bus was late and I reached Hyderabad`, share a current location pin when asked. Confirm that no outbound ticket appears.
+
 ## Current scope
 
 1. A traveler plans a trip as before. The bot persists the generated itinerary. Generated items are recommendations, not bookings.
@@ -46,7 +59,7 @@ $env:PYTHONPATH = 'whatsapp-bot-service'
 python -m pytest whatsapp-bot-service/tests -q -p asyncio -p no:cacheprovider
 ```
 
-The webhook integration test sends the real Meta-shaped POST payload to the FastAPI webhook through ASGI, then exercises `Trip Rescue` → disruption → option button → approval → versioned persistence. WhatsApp sending, provider lookup, and model output are mocked. The agent test separately proves both specialists run and rejects invented IDs. These tests do not prove that third-party inventory is available or that a live Meta account is configured.
+The webhook integration tests send Meta-shaped POST payloads to the FastAPI webhook through ASGI. They cover both `Trip Rescue` → disruption → option button → approval and the contextual `Trip Rescue` → trip confirmation → disruption → automatic itinerary version. WhatsApp sending, provider lookup, and model output are mocked. The agent tests reject invented IDs and verify that an already-arrived traveler does not receive an outbound transport option. These tests do not prove that third-party inventory is available or that a live Meta account is configured.
 
 ## Test actual WhatsApp messages without deploying
 
@@ -58,6 +71,8 @@ The webhook integration test sends the real Meta-shaped POST payload to the Fast
 6. From your allowed personal WhatsApp number, message the Meta test number. First complete the existing `New trip` planner flow. Then send `Trip Rescue`, report a disruption (for example, `My outbound train is delayed by 2 hours`), choose an option, and tap `Apply update`. To test a reported commitment, send the `Booking add:` command above before starting Trip Rescue.
    For an arrival test, send `Trip Rescue` → `The bus was late and I reached Hyderabad by 9 am` → share a WhatsApp location pin near Hyderabad or type a precise landmark such as `MGBS bus station` → choose a nearby stay → `Apply update`. Expect hotel and sightseeing suggestions, with no replacement outbound transport.
 7. Confirm the resulting message says **itinerary updated, supplier booking unchanged**. Check the bot and planner logs for the recovery run, agent traces, and errors. Test a cancellation and an unrecognized change. Restarting the tunnel gives a new URL, so update Meta's callback.
+
+For the contextual mode, also set `TRIP_RESCUE_CONTEXTUAL_ENABLED=true` in `.env` before starting Compose. The sequence is `Trip Rescue` → select the saved trip → describe what happened → share a location pin if asked → receive one recommendation and a new itinerary version automatically. No option or `Apply update` button appears in this mode. For an arrival delay, the reply names the nearby stay and up to two nearby sights. Inspect the newly saved itinerary to verify that reported booked activities remain intact.
 
 The Meta test number and temporary tunnel exercise real inbound and outbound WhatsApp delivery but do not require deploying the app. Provider/API credentials are still required for live travel results. The bot must run with `APP_ENV=development` or `production` for real outbound messages; `APP_ENV=test` intentionally mocks sending. The initial test number may restrict recipient accounts according to Meta's current setup UI.
 

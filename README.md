@@ -169,6 +169,8 @@ The new **Trip Rescue** flow lets a traveler report a delay, cancellation, or cl
 
 If the traveler has already arrived late, the bot requests a current location pin or precise landmark and offers nearby hotel and sightseeing suggestions grounded in Google Places and Routes. It does not suggest another outbound ticket or claim that a room is available.
 
+An optional contextual mode (`TRIP_RESCUE_CONTEXTUAL_ENABLED=true`, alongside `TRIP_RESCUE_ENABLED=true`) asks the traveler to choose the saved trip, then accepts a free-text disruption. Bedrock routes the issue to only the needed providers and selects one provider-backed recommendation. The bot automatically versions the suggested itinerary after that trip confirmation. It does not buy or cancel supplier bookings. See the Trip Rescue guide for limits and testing.
+
 See [Trip Rescue implementation and local WhatsApp sandbox testing](docs/TRIP_RESCUE.md) for setup, API behavior, current limits, and test commands.
 
 | Capability | Integration Provider | Description |

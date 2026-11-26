@@ -208,6 +208,16 @@ class FirestoreStore:
                 return TripRecord.model_validate(data)
         return None
 
+    async def get_recent_trips(self, wa_id: str, limit: int = 3) -> List[TripRecord]:
+        """Bounded trip chooser, scoped to the WhatsApp user."""
+        limit = max(1, min(limit, 3))
+        if self._db:
+            query = (self._db.collection("users").document(wa_id).collection("trips")
+                     .order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit))
+            return [TripRecord.model_validate(doc.to_dict()) for doc in await query.get()]
+        rows = sorted(self._trips.get(wa_id, []), key=lambda row: row.get("created_at", ""), reverse=True)
+        return [TripRecord.model_validate(row) for row in rows[:limit]]
+
     async def save_recovery_run(self, run: RecoveryRunRecord):
         data = run.model_dump(mode="json")
         if self._db:

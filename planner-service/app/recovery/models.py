@@ -37,6 +37,7 @@ class RecoveryRequest(BaseModel):
     trip_id: str | None = None
     event_id: str | None = None
     current_location: "RecoveryLocation | None" = None
+    contextual: bool = False
 
 
 class RecoveryLocation(BaseModel):
@@ -88,7 +89,7 @@ class AgentTrace(BaseModel):
 
 class RecoveryResult(BaseModel):
     status: Literal["ready", "needs_clarification", "no_verified_options"]
-    change_kind: Literal["delay", "arrival_delay", "cancellation", "closure", "preference", "unknown"]
+    change_kind: Literal["delay", "arrival_delay", "cancellation", "closure", "preference", "stay_problem", "safety", "unknown"]
     affected_commitment_ids: list[str] = Field(default_factory=list)
     clarification: str | None = None
     options: list[RecoveryOption] = Field(default_factory=list)
@@ -97,3 +98,6 @@ class RecoveryResult(BaseModel):
     expires_at: datetime | None = None
     disclaimer: str = "Search results are not bookings. Recheck availability before paying."
     location: RecoveryLocation | None = None
+    recommended_option_id: str | None = None
+    response_text: str | None = None
+    activity_to_replace: str | None = None

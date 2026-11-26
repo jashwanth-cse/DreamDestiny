@@ -60,6 +60,7 @@ async def get_hotels(
         le=10,
         description="Number of children (0–10).",
     ),
+    fresh: bool = Query(default=False, description="Bypass the normal cache for Trip Rescue."),
 ):
     # ------------------------------------------------------------------
     # 1. Validate dates
@@ -89,7 +90,7 @@ async def get_hotels(
     # 2. Cache lookup
     # ------------------------------------------------------------------
     cache_key = make_cache_key(city, check_in, check_out, adults, children)
-    cached = get_cached(cache_key)
+    cached = None if fresh else get_cached(cache_key)
 
     if cached is not None:
         logger.info("Cache HIT  → %s", cache_key)

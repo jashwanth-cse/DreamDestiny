@@ -113,6 +113,64 @@ def test_nearby_itinerary_keeps_confirmed_activity_and_transport():
     assert "hotel" not in current  # copy-on-write
 
 
+def test_contextual_rescue_confirms_trip_then_auto_revises_only_that_trip(monkeypatch):
+    async def run():
+        monkeypatch.setattr(settings, "app_env", "test")
+        monkeypatch.setattr(settings, "trip_rescue_enabled", True)
+        monkeypatch.setattr(settings, "trip_rescue_contextual_enabled", True)
+        redis_store._client = None
+        redis_store._memory_cache.clear()
+        firestore_store._db = None
+        firestore_store._trips.clear()
+        firestore_store._itineraries.clear()
+        firestore_store._recovery_runs.clear()
+        whatsapp_client._sent_messages_log.clear()
+        older = TripRecord(wa_id="919900000001", conversation_id="conv_old", origin="Chennai",
+            destination="Madurai", start_date="2026-12-01", end_date="2026-12-03",
+            travelers=1, created_at="2026-11-20T00:00:00+00:00",
+            trip_request_data={"origin": "Chennai", "destination": "Madurai",
+                "start_date": "2026-12-01", "end_date": "2026-12-03", "travelers": 1})
+        newer = TripRecord(wa_id="919900000001", conversation_id="conv_new", origin="Chennai",
+            destination="Hyderabad", start_date="2026-12-01", end_date="2026-12-03",
+            travelers=1, created_at="2026-11-21T00:00:00+00:00",
+            trip_request_data={"origin": "Chennai", "destination": "Hyderabad",
+                "start_date": "2026-12-01", "end_date": "2026-12-03", "travelers": 1})
+        for trip in (older, newer):
+            await firestore_store.save_trip(trip)
+            await firestore_store.save_itinerary_version(trip.wa_id, trip.trip_id,
+                ItineraryVersionRecord(itinerary_data={"hotel": {"hotel_name": "Old Hotel"}, "days": []}))
+        await redis_store.save_session(UserSession(wa_id=older.wa_id, current_trip_id=newer.trip_id,
+                                                  state="COMPLETED"))
+        calls = []
+        async def contextual_plan(*args, **kwargs):
+            calls.append((args, kwargs))
+            assert kwargs["contextual"] is True
+            assert args[0].destination == "Madurai"
+            expiry = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+            return {"status": "ready", "change_kind": "stay_problem",
+                "recommended_option_id": "hotel:h1",
+                "response_text": "Best matching provider result: *New Hotel*. No supplier booking was changed.",
+                "options": [{"id": "hotel:h1", "category": "nearby_stay", "title": "New Hotel",
+                             "source_id": "h1", "price": 1900, "reason": "Hotel search result",
+                             "evidence": {"valid_until": expiry}}], "expires_at": expiry}
+        monkeypatch.setattr(planner_gateway, "propose_recovery", contextual_plan)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            assert (await client.post("/webhook", json=_webhook("c1", "Trip Rescue"))).status_code == 200
+            assert not calls
+            assert (await client.post("/webhook", json=_webhook("c2", "Trip 2", "rescue_trip_1"))).status_code == 200
+            assert not calls
+            assert (await client.post("/webhook", json=_webhook("c3", "My hotel room is dirty"))).status_code == 200
+            assert (await client.post("/webhook", json=_webhook("c3", "My hotel room is dirty"))).status_code == 200
+        assert len(calls) == 1
+        assert (await firestore_store.get_trip(older.wa_id, older.trip_id)).latest_version == 2
+        assert (await firestore_store.get_trip(newer.wa_id, newer.trip_id)).latest_version == 1
+        revised = await firestore_store.get_latest_itinerary(older.wa_id, older.trip_id)
+        assert revised.itinerary_data["hotel"]["hotel_name"] == "New Hotel"
+        assert len(whatsapp_client._sent_messages_log) == 3
+    asyncio.run(run())
+
+
 def test_webhook_recovery_choice_approval_and_duplicate_delivery(monkeypatch):
     async def run():
         monkeypatch.setattr(settings, "app_env", "test")

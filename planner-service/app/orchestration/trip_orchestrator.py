@@ -92,14 +92,15 @@ class TripOrchestrator:
 
     # ── Granular Cache Wrappers ───────────────────────────────────────────────
 
-    async def _get_tourism(self, city: str, limit: int):
+    async def _get_tourism(self, city: str, limit: int, fresh: bool = False):
         key = f"{city}:{limit}"
-        cached = self._cache_tourism.get(key)
+        cached = None if fresh else self._cache_tourism.get(key)
         if cached is not None:
             logger.info("Cache HIT: Tourism")
             return cached
         
-        data = await self._tourism.get_attractions(city, limit)
+        data = (await self._tourism.get_attractions(city, limit, fresh=True) if fresh
+                else await self._tourism.get_attractions(city, limit))
         self._cache_tourism.set(key, data)
         return data
 
@@ -114,14 +115,16 @@ class TripOrchestrator:
         self._cache_route.set(key, data)
         return data
 
-    async def _get_hotels(self, city: str, check_in: str, check_out: str, adults: int, children: int):
+    async def _get_hotels(self, city: str, check_in: str, check_out: str, adults: int,
+                          children: int, fresh: bool = False):
         key = f"{city}:{check_in}:{check_out}:{adults}:{children}"
-        cached = self._cache_hotels.get(key)
+        cached = None if fresh else self._cache_hotels.get(key)
         if cached is not None:
             logger.info("Cache HIT: Hotels")
             return cached
             
-        data = await self._hotels.get_hotels(city, check_in, check_out, adults, children)
+        data = (await self._hotels.get_hotels(city, check_in, check_out, adults, children, fresh=True)
+                if fresh else await self._hotels.get_hotels(city, check_in, check_out, adults, children))
         self._cache_hotels.set(key, data)
         return data
 

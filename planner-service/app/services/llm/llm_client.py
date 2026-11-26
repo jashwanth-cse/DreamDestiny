@@ -31,6 +31,7 @@ class BedrockLLMClient:
         system_prompt: str,
         user_data: dict[str, Any],
         json_schema: dict[str, Any],
+        max_tokens: int = 8192,
     ) -> dict[str, Any]:
         """
         Generate a JSON object from the model via Bedrock.
@@ -56,7 +57,7 @@ class BedrockLLMClient:
                 model=self._model,
                 messages=messages,
                 temperature=0.2,
-                max_tokens=8192
+                max_tokens=max_tokens
             )
         except Exception as exc:
             logger.error("Bedrock API error: %s", exc)

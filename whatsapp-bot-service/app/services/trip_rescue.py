@@ -12,6 +12,7 @@ import uuid
 import re
 
 from app.clients.planner_gateway import planner_gateway, PlannerGatewayError
+from app.config import settings
 from app.schemas.conversation import (ConversationState, ItineraryVersionRecord,
                                       RecoveryRunRecord, UserSession)
 from app.schemas.webhook import NormalizedEvent
@@ -66,14 +67,38 @@ def _revised_itinerary(current: dict, change: str, option: dict, trip) -> dict:
             decision["operator_name"] = option.get("title")
         revised[f"{direction}_transport"] = decision
     elif option_id.startswith("activity:"):
+        replace_name = option.get("activity_to_replace")
+        booked = {c.get("title", "").casefold() for c in trip.commitments
+                  if c.get("kind") == "activity" and c.get("confirmed")}
+        replaced = False
         for day in revised.get("days", []):
             for activity in day.get("activities", []):
                 old_name = activity.get("attraction_name", "")
-                if old_name and old_name.casefold() in change.casefold():
+                if old_name and old_name.casefold() not in booked and (
+                    old_name == replace_name or old_name.casefold() in change.casefold()):
                     activity.update(attraction_name=option["title"], start_time=None,
                                     duration_minutes=None, estimated_cost=None,
                                     notes="Alternative suggestion; confirm opening hours before visiting")
+                    replaced = True
                     break
+            if replaced:
+                break
+        days = revised.get("days") or []
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+        next_day = next((d for d in days if d.get("date") and d["date"] >= today), None)
+        if next_day is None and days and not any(d.get("date") for d in days):
+            next_day = days[0]
+        if not replaced and next_day is not None:
+            next_day.setdefault("activities", []).append({
+                "attraction_name": option["title"], "start_time": None,
+                "duration_minutes": None, "estimated_cost": None,
+                "notes": "Suggested alternative; confirm opening hours before visiting"})
+    elif option_id.startswith("hotel:"):
+        revised["hotel"] = {
+            "hotel_id": option["source_id"], "hotel_name": option["title"],
+            "reasoning": "Trip Rescue hotel search result; supplier booking unchanged",
+            "price_per_night": option.get("price"), "price_total": None,
+        }
     elif option_id.startswith("nearby:"):
         if option["category"] == "nearby_stay":
             revised["hotel"] = {
@@ -131,6 +156,7 @@ class TripRescueService:
         lower = text.casefold()
         payload = event.payload_id or ""
         active = session.state in {ConversationState.RECOVERY_CHANGE,
+                                   ConversationState.RECOVERY_TRIP_CHOICE,
                                    ConversationState.RECOVERY_LOCATION,
                                    ConversationState.RECOVERY_CHOICE,
                                    ConversationState.RECOVERY_APPROVAL}
@@ -143,6 +169,7 @@ class TripRescueService:
             session.pending_recovery_change = None
             session.pending_recovery_id = None
             session.pending_recovery_option_id = None
+            session.pending_recovery_trip_ids = []
             return False
 
         if lower in {"cancel", "menu", "stop"} or payload == "rescue_cancel":
@@ -150,8 +177,54 @@ class TripRescueService:
             session.pending_recovery_id = None
             session.pending_recovery_option_id = None
             session.pending_recovery_change = None
+            session.pending_recovery_trip_ids = []
             await redis_store.save_session(session)
             await self._send(session, "Trip Rescue cancelled. Your saved itinerary was not changed.")
+            return True
+
+        if trigger and settings.trip_rescue_contextual_enabled:
+            trips = await firestore_store.get_recent_trips(session.wa_id)
+            if not trips:
+                await self._send(session, "I couldn't find a saved trip. Reply *New trip* to plan one first.")
+                return True
+            session.pending_recovery_trip_ids = [t.trip_id for t in trips]
+            session.pending_recovery_change = None
+            session.pending_recovery_id = None
+            session.pending_recovery_option_id = None
+            session.state = ConversationState.RECOVERY_TRIP_CHOICE
+            await redis_store.save_session(session)
+            lines = ["*Which saved trip needs help?* Select one to confirm:"]
+            for i, saved in enumerate(trips, 1):
+                lines.append(f"{i}. *{saved.origin} → {saved.destination}* ({saved.start_date} to {saved.end_date})")
+            buttons = [(f"rescue_trip_{i}", f"Trip {i+1}: {t.destination[:12]}")
+                       for i, t in enumerate(trips)]
+            await self._send(session, "\n".join(lines), buttons)
+            return True
+
+        if session.state == ConversationState.RECOVERY_TRIP_CHOICE:
+            index = None
+            if payload.startswith("rescue_trip_"):
+                try:
+                    index = int(payload.removeprefix("rescue_trip_"))
+                except ValueError:
+                    pass
+            else:
+                match = re.fullmatch(r"(?:trip\s*)?([1-3])", lower)
+                if match:
+                    index = int(match.group(1)) - 1
+            ids = session.pending_recovery_trip_ids
+            if index is None or not 0 <= index < len(ids):
+                await self._send(session, "Please choose one of the listed trips, or reply 1, 2, or 3.")
+                return True
+            selected_trip = await firestore_store.get_trip(session.wa_id, ids[index])
+            if not selected_trip:
+                await self._send(session, "That trip is no longer available. Send *Trip Rescue* to refresh the list.")
+                return True
+            session.current_trip_id = selected_trip.trip_id
+            session.pending_recovery_trip_ids = []
+            session.state = ConversationState.RECOVERY_CHANGE
+            await redis_store.save_session(session)
+            await self._send(session, f"Confirmed: *{selected_trip.origin} → {selected_trip.destination}* ({selected_trip.start_date} to {selected_trip.end_date}). What happened? Describe it in your own words; include where you are now if location matters.")
             return True
 
         trip = await firestore_store.get_trip(session.wa_id, session.current_trip_id) if session.current_trip_id else None
@@ -221,18 +294,65 @@ class TripRescueService:
                     return True
             try:
                 request = TripRequest.model_validate(trip.trip_request_data)
+                if settings.trip_rescue_contextual_enabled:
+                    run_id = "rec_" + hashlib.sha256(event.message_id.encode()).hexdigest()[:12]
+                    old_run = await firestore_store.get_recovery_run(session.wa_id, trip.trip_id, run_id)
+                    if old_run and old_run.status == "applied":
+                        await self._send(session, (old_run.result.get("response_text") or "Trip Rescue updated your itinerary.")
+                                         + f"\nSaved itinerary version {old_run.applied_version}.")
+                        session.state = ConversationState.COMPLETED
+                        session.pending_recovery_change = None
+                        await redis_store.save_session(session)
+                        return True
+                extra = {"contextual": True} if settings.trip_rescue_contextual_enabled else {}
                 result = await planner_gateway.propose_recovery(request, version.itinerary_data,
                                                                 change, trip.commitments, trip.trip_id,
-                                                                session.correlation_id, location)
+                                                                session.correlation_id, location, **extra)
             except (PlannerGatewayError, ValueError):
                 await self._send(session, "I couldn't check current alternatives. Your itinerary is unchanged. Please try again shortly.")
                 return True
             if result.get("status") == "needs_clarification":
+                if settings.trip_rescue_contextual_enabled and (
+                    result.get("change_kind") == "arrival_delay" or "location" in (result.get("clarification") or "").casefold()):
+                    session.pending_recovery_change = change
+                    session.state = ConversationState.RECOVERY_LOCATION
+                    await redis_store.save_session(session)
                 await self._send(session, result.get("clarification") or "Please describe what changed.")
                 return True
             options = result.get("options") or []
             if result.get("status") != "ready" or not options:
-                await self._send(session, "I couldn't find a source-backed alternative right now. Your itinerary is unchanged. Try a different route or contact your provider.")
+                await self._send(session, result.get("clarification") or
+                                 "I couldn't find a source-backed alternative right now. Your itinerary is unchanged. Try again shortly or contact your provider.")
+                return True
+            if settings.trip_rescue_contextual_enabled:
+                selected_id = result.get("recommended_option_id")
+                selected = next((o for o in options if o.get("id") == selected_id), None)
+                if not selected:
+                    await self._send(session, "I could not validate a provider-backed recommendation. Your itinerary is unchanged.")
+                    return True
+                run = RecoveryRunRecord(run_id=run_id, wa_id=session.wa_id, trip_id=trip.trip_id,
+                    base_version=trip.latest_version, change=change, result=result,
+                    commitments_digest=_commitments_digest(trip.commitments))
+                await firestore_store.save_recovery_run(run)
+                selected["location"] = result.get("location")
+                selected["activity_to_replace"] = result.get("activity_to_replace")
+                revised = _revised_itinerary(version.itinerary_data, change, selected, trip)
+                try:
+                    new_version = await firestore_store.apply_recovery(run, selected_id, version, revised)
+                    try:
+                        await redis_store.update_archived_trip(session.wa_id, trip.trip_id, revised)
+                    except Exception:
+                        logger.warning("My Trips cache update failed for trip %s", trip.trip_id, exc_info=True)
+                except ValueError:
+                    await self._send(session, "Your trip changed while I checked alternatives. No itinerary or supplier booking was changed. Send *Trip Rescue* to retry.")
+                    return True
+                await self._send(session, (result.get("response_text") or f"Recommended: *{selected['title']}*.")
+                                 + f"\nSaved itinerary version {new_version}.")
+                session.state = ConversationState.COMPLETED
+                session.pending_recovery_change = None
+                session.pending_recovery_id = None
+                session.pending_recovery_option_id = None
+                await redis_store.save_session(session)
                 return True
             run = RecoveryRunRecord(wa_id=session.wa_id, trip_id=trip.trip_id,
                                     base_version=trip.latest_version, change=change, result=result,

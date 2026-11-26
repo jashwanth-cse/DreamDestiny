@@ -41,6 +41,7 @@ class HotelClient(HotelProvider):
         check_out: str,
         adults: int,
         children: int = 0,
+        fresh: bool = False,
     ) -> list[HotelContext]:
         url = f"{settings.hotel_service_url}/hotels"
         params = {
@@ -49,6 +50,7 @@ class HotelClient(HotelProvider):
             "check_out": check_out,
             "adults": adults,
             "children": children,
+            "fresh": str(fresh).lower(),
         }
 
         try:

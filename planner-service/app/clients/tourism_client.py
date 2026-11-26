@@ -35,9 +35,10 @@ class TourismClient(TourismProvider):
         self,
         city: str,
         limit: int = 10,
+        fresh: bool = False,
     ) -> list[AttractionContext]:
         url = f"{settings.tourism_service_url}/tourism"
-        params = {"city": city, "limit": limit}
+        params = {"city": city, "limit": limit, "fresh": str(fresh).lower()}
 
         try:
             async with httpx.AsyncClient() as client:

@@ -34,6 +34,7 @@ FIELD_MASK = (
     "places.photos,"
     "places.types"
 )
+RECOVERY_FIELD_MASK = FIELD_MASK.replace("places.photos,", "")
 
 MAX_PHOTO_WIDTH_PX = 800
 REQUEST_TIMEOUT = 30  # seconds
@@ -151,6 +152,7 @@ async def _fetch_photo_url(
 async def fetch_tourist_attractions(
     city_name: str,
     max_results: int = 10,
+    fresh: bool = False,
 ) -> list[dict]:
     """
     Search Google Places for tourist attractions in *city_name* and
@@ -161,7 +163,7 @@ async def fetch_tourist_attractions(
     Photo URLs are resolved concurrently to keep total latency low.
     """
     cache_key = f"places:{city_name.strip().lower()}:{max_results}"
-    cached = await _cache_get(cache_key)
+    cached = None if fresh else await _cache_get(cache_key)
     if cached is not None:
         logger.info("Cache HIT for tourist attractions: %s", cache_key)
         return cached
@@ -171,7 +173,7 @@ async def fetch_tourist_attractions(
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": api_key,
-        "X-Goog-FieldMask": FIELD_MASK,
+        "X-Goog-FieldMask": RECOVERY_FIELD_MASK if fresh else FIELD_MASK,
     }
 
     payload = {
@@ -205,6 +207,9 @@ async def fetch_tourist_attractions(
     # 2. Resolve photo resource names → actual URLs concurrently
     photo_tasks = []
     for place in places_data:
+        if fresh:
+            photo_tasks.append(_noop())
+            continue
         photos = place.get("photos", [])
         resource_name = photos[0].get("name") if photos else None
         if resource_name:
@@ -237,7 +242,7 @@ async def fetch_tourist_attractions(
         results.append(attraction)
 
     # Cache successful results
-    if results:
+    if results and not fresh:
         await _cache_set(cache_key, results)
 
     return results

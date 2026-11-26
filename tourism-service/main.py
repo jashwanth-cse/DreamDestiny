@@ -90,6 +90,7 @@ async def get_tourism(
         le=20,
         description="Maximum number of attractions to return (1–20).",
     ),
+    fresh: bool = Query(default=False, description="Bypass the normal cache for Trip Rescue."),
 ):
     """
     Fetch tourist attractions for *city* from the Google Places API
@@ -102,6 +103,7 @@ async def get_tourism(
         raw_attractions = await fetch_tourist_attractions(
             city_name=city,
             max_results=limit,
+            fresh=fresh,
         )
     except RuntimeError as exc:
         # Distinguish between a missing API key (bad config) and a

@@ -104,15 +104,17 @@ class PlannerGatewayClient:
 
     async def propose_recovery(self, trip_request: TripRequest, itinerary: dict,
                                change: str, commitments: list[dict], trip_id: str,
-                               correlation_id: str, current_location: dict | None = None) -> dict:
+                               correlation_id: str, current_location: dict | None = None,
+                               contextual: bool = False) -> dict:
         client = await self.get_client()
         try:
             response = await client.post(
                 "/v1/recovery",
                 json={"trip": trip_request.model_dump(mode="json"), "itinerary": itinerary,
                       "change": change, "commitments": commitments, "trip_id": trip_id,
-                      "current_location": current_location},
+                      "current_location": current_location, "contextual": contextual},
                 headers={"X-Correlation-ID": correlation_id},
+                timeout=httpx.Timeout(95.0, connect=10.0) if contextual else self.timeout,
             )
             response.raise_for_status()
             return response.json()
