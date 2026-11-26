@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.routes.planner import router as planner_router
 from app.api.routes.plan import router as plan_router
+from app.api.routes.recovery import router as recovery_router
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ app.add_middleware(
 
 app.include_router(planner_router)
 app.include_router(plan_router)
+app.include_router(recovery_router)
 
 
 @app.get("/health", tags=["Health"])

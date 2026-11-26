@@ -33,6 +33,9 @@ class ConversationState(str, Enum):
     MAIN_MENU = "MAIN_MENU"
     VIEWING_TRIPS = "VIEWING_TRIPS"
     ERROR = "ERROR"
+    RECOVERY_CHANGE = "RECOVERY_CHANGE"
+    RECOVERY_CHOICE = "RECOVERY_CHOICE"
+    RECOVERY_APPROVAL = "RECOVERY_APPROVAL"
 
 
 class UserSession(BaseModel):
@@ -47,6 +50,8 @@ class UserSession(BaseModel):
     paused_state: Optional[ConversationState] = None
     draft: TripDraft = Field(default_factory=TripDraft)
     current_trip_id: Optional[str] = None
+    pending_recovery_id: Optional[str] = None
+    pending_recovery_option_id: Optional[str] = None
     last_message_id: Optional[str] = None
     last_activity: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     version: int = 1
@@ -118,3 +123,18 @@ class TripRecord(BaseModel):
     updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     latest_version: int = 1
     trip_request_data: Dict[str, Any]
+    commitments: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class RecoveryRunRecord(BaseModel):
+    run_id: str = Field(default_factory=lambda: f"rec_{uuid.uuid4().hex[:12]}")
+    wa_id: str
+    trip_id: str
+    base_version: int
+    change: str
+    result: Dict[str, Any]
+    commitments_digest: str = ""
+    status: str = "proposed"
+    selected_option_id: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    applied_version: Optional[int] = None

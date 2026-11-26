@@ -40,7 +40,7 @@ TRAVEL_KEYWORDS = {
 # Explicitly off-topic patterns: coding, math equations, political/trivia essay prompts, medical
 OFF_TOPIC_PATTERNS = [
     re.compile(r"\b(def\s+\w+|function\s*\(|class\s+\w+|import\s+\w+|console\.log|select\s+.*\s+from|<!DOCTYPE|<html)\b", re.IGNORECASE),
-    re.compile(r"\b(write\s+(a\s+)?(code|script|program|essay|poem|story|song|article)|debug\s+my|fix\s+this\s+bug)\b", re.IGNORECASE),
+    re.compile(r"\b(write\s+(?:(?:a|an|python|javascript|java)\s+)?(code|script|program|essay|poem|story|song|article)|debug\s+my|fix\s+this\s+bug)\b", re.IGNORECASE),
     re.compile(r"\b(solve|calculate|equation|algebra|integral|derivative|\d+\s*[\+\*\/\^]\s*\d+)\b", re.IGNORECASE),
     re.compile(r"\b(who\s+is\s+the\s+(president|prime\s+minister|ceo|king|queen)|election|politics|parliament)\b", re.IGNORECASE),
     re.compile(r"\b(prescribe|medicine|symptoms\s+of|cure\s+for|medical\s+advice|legal\s+advice|stock\s+market|invest\s+in\s+crypto)\b", re.IGNORECASE),

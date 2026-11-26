@@ -5,6 +5,9 @@ Includes in-memory simulation for local testing when credentials are not configu
 """
 
 import logging
+import hashlib
+import json
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from app.schemas.conversation import (
@@ -13,10 +16,16 @@ from app.schemas.conversation import (
     MessageRecord,
     TripRecord,
     ItineraryVersionRecord,
+    RecoveryRunRecord,
 )
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _digest_commitments(items: list[dict]) -> str:
+    raw = json.dumps(items, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 # Optional Google Cloud Firestore import
 try:
@@ -35,6 +44,7 @@ class FirestoreStore:
         self._messages: Dict[str, List[Dict[str, Any]]] = {}
         self._trips: Dict[str, List[Dict[str, Any]]] = {}
         self._itineraries: Dict[str, List[Dict[str, Any]]] = {}
+        self._recovery_runs: Dict[str, Dict[str, Any]] = {}
 
     def connect(self):
         if firestore is None:
@@ -177,10 +187,107 @@ class FirestoreStore:
                 await doc_ref.set(data, merge=True)
             except Exception as e:
                 logger.error("Error saving trip to Firestore: %s", e)
+                if settings.trip_rescue_enabled:
+                    raise
         else:
             if trip.wa_id not in self._trips:
                 self._trips[trip.wa_id] = []
-            self._trips[trip.wa_id].append(data)
+            for i, old in enumerate(self._trips[trip.wa_id]):
+                if old.get("trip_id") == trip.trip_id:
+                    self._trips[trip.wa_id][i] = data
+                    break
+            else:
+                self._trips[trip.wa_id].append(data)
+
+    async def get_trip(self, wa_id: str, trip_id: str) -> Optional[TripRecord]:
+        if self._db:
+            doc = await self._db.collection("users").document(wa_id).collection("trips").document(trip_id).get()
+            return TripRecord.model_validate(doc.to_dict()) if doc.exists else None
+        for data in self._trips.get(wa_id, []):
+            if data.get("trip_id") == trip_id:
+                return TripRecord.model_validate(data)
+        return None
+
+    async def save_recovery_run(self, run: RecoveryRunRecord):
+        data = run.model_dump(mode="json")
+        if self._db:
+            await self._db.collection("users").document(run.wa_id).collection("trips").document(run.trip_id).collection("recovery_runs").document(run.run_id).set(data)
+        else:
+            self._recovery_runs[run.run_id] = data
+
+    async def get_recovery_run(self, wa_id: str, trip_id: str, run_id: str) -> Optional[RecoveryRunRecord]:
+        if self._db:
+            doc = await self._db.collection("users").document(wa_id).collection("trips").document(trip_id).collection("recovery_runs").document(run_id).get()
+            return RecoveryRunRecord.model_validate(doc.to_dict()) if doc.exists else None
+        data = self._recovery_runs.get(run_id)
+        if data and data["wa_id"] == wa_id and data["trip_id"] == trip_id:
+            return RecoveryRunRecord.model_validate(data)
+        return None
+
+    async def apply_recovery(self, run: RecoveryRunRecord, option_id: str,
+                             previous: ItineraryVersionRecord,
+                             revised_data: Dict[str, Any]) -> int:
+        """Atomically advance a trip version once. A stale run cannot overwrite a newer trip."""
+        if option_id not in {o.get("id") for o in run.result.get("options", [])}:
+            raise ValueError("Option is not in this recovery run")
+        expiry = run.result.get("expires_at")
+        if expiry and datetime.fromisoformat(expiry.replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+            raise ValueError("Recovery options expired")
+        if self._db:
+            trip_ref = self._db.collection("users").document(run.wa_id).collection("trips").document(run.trip_id)
+            run_ref = trip_ref.collection("recovery_runs").document(run.run_id)
+            old_ref = trip_ref.collection("itineraries").document(previous.version_id)
+            new_record = ItineraryVersionRecord(version_number=run.base_version + 1,
+                itinerary_data=revised_data, modification_prompt=run.change, is_current=True)
+            new_ref = trip_ref.collection("itineraries").document(new_record.version_id)
+            transaction = self._db.transaction()
+
+            @firestore.async_transactional
+            async def update(tx):
+                trip_doc = await trip_ref.get(transaction=tx)
+                run_doc = await run_ref.get(transaction=tx)
+                if not trip_doc.exists or not run_doc.exists:
+                    raise ValueError("Trip or recovery run not found")
+                trip_data, run_data = trip_doc.to_dict(), run_doc.to_dict()
+                if run_data.get("status") == "applied":
+                    if run_data.get("selected_option_id") != option_id:
+                        raise ValueError("Recovery run was applied with another option")
+                    return int(run_data["applied_version"])
+                if int(trip_data.get("latest_version", 1)) != run.base_version:
+                    raise ValueError("Trip changed since these options were created")
+                if run.commitments_digest and _digest_commitments(trip_data.get("commitments", [])) != run.commitments_digest:
+                    raise ValueError("Reported bookings changed")
+                version_no = run.base_version + 1
+                tx.update(trip_ref, {"latest_version": version_no, "status": "revised", "updated_at": datetime.now(timezone.utc).isoformat()})
+                tx.update(run_ref, {"status": "applied", "selected_option_id": option_id, "applied_version": version_no})
+                tx.update(old_ref, {"is_current": False})
+                tx.create(new_ref, new_record.model_dump(mode="json"))
+                return version_no
+
+            return await update(transaction)
+        data = self._recovery_runs.get(run.run_id)
+        if not data or data["wa_id"] != run.wa_id or data["trip_id"] != run.trip_id:
+            raise ValueError("Recovery run not found")
+        if data["status"] == "applied":
+            if data["selected_option_id"] != option_id:
+                raise ValueError("Recovery run was applied with another option")
+            return int(data["applied_version"])
+        trip = await self.get_trip(run.wa_id, run.trip_id)
+        if not trip or trip.latest_version != run.base_version:
+            raise ValueError("Trip changed since these options were created")
+        if run.commitments_digest and _digest_commitments(trip.commitments) != run.commitments_digest:
+            raise ValueError("Reported bookings changed")
+        trip.latest_version += 1
+        trip.status = "revised"
+        await self.save_trip(trip)
+        for old in self._itineraries.get(run.trip_id, []):
+            if old.get("version_id") == previous.version_id:
+                old["is_current"] = False
+        await self.save_itinerary_version(run.wa_id, run.trip_id,
+            ItineraryVersionRecord(version_number=trip.latest_version,
+                itinerary_data=revised_data, modification_prompt=run.change, is_current=True))
+        data.update(status="applied", selected_option_id=option_id, applied_version=trip.latest_version)
+        return trip.latest_version
 
     async def save_itinerary_version(self, wa_id: str, trip_id: str, version: ItineraryVersionRecord):
         """Save versioned itinerary in users/{wa_id}/trips/{trip_id}/itineraries/{version_id}"""
@@ -198,6 +305,8 @@ class FirestoreStore:
                 await doc_ref.set(data)
             except Exception as e:
                 logger.error("Error saving itinerary version: %s", e)
+                if settings.trip_rescue_enabled:
+                    raise
         else:
             if trip_id not in self._itineraries:
                 self._itineraries[trip_id] = []

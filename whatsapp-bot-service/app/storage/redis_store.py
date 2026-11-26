@@ -5,6 +5,9 @@ Supports async operations with connection pooling and an in-memory fallback for 
 
 import json
 import logging
+import os
+import socket
+import uuid
 from typing import Optional
 from contextlib import asynccontextmanager
 
@@ -27,6 +30,9 @@ class RedisStore:
         self._memory_cache: dict[str, str] = {}  # In-memory fallback
         self._locks: set[str] = set()
         self._user_trips: dict[str, list[dict]] = {}  # In-memory trips archive
+        self._stream = "travel:incoming:v1"
+        self._group = "travel-bot-workers"
+        self.worker_name = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
     async def connect(self):
         if redis is not None and self._url:
@@ -50,6 +56,53 @@ class RedisStore:
     async def close(self):
         if self._client:
             await self._client.close()
+
+    async def ensure_event_group(self):
+        """Create a durable consumer group; safe for concurrent replicas."""
+        if not self._client:
+            return
+        try:
+            await self._client.xgroup_create(self._stream, self._group, id="0-0", mkstream=True)
+        except Exception as exc:
+            if "BUSYGROUP" not in str(exc):
+                raise
+
+    async def enqueue_event(self, event_json: str) -> str:
+        if not self._client:
+            raise RuntimeError("Redis stream is unavailable")
+        event_id = await self._client.xadd(self._stream, {"payload": event_json}, maxlen=100000, approximate=True)
+        return str(event_id)
+
+    async def next_events(self) -> list[tuple[str, dict]]:
+        if not self._client:
+            return []
+        claimed = await self._client.xautoclaim(
+            self._stream, self._group, self.worker_name,
+            min_idle_time=180000, start_id="0-0", count=10,
+        )
+        if len(claimed) > 1 and claimed[1]:
+            return claimed[1]
+        batches = await self._client.xreadgroup(
+            self._group, self.worker_name, {self._stream: ">"}, count=10, block=2000,
+        )
+        return batches[0][1] if batches else []
+
+    async def ack_event(self, stream_id: str):
+        if self._client:
+            await self._client.xack(self._stream, self._group, stream_id)
+
+    async def dead_letter_if_exhausted(self, stream_id: str, payload: str, error: str) -> bool:
+        if not self._client:
+            return False
+        pending = await self._client.xpending_range(self._stream, self._group, stream_id, stream_id, 1)
+        deliveries = pending[0].get("times_delivered", 0) if pending else 0
+        if deliveries < 5:
+            return False
+        await self._client.xadd("travel:incoming:dead:v1",
+                                {"source_id": stream_id, "payload": payload, "error": error[:300]},
+                                maxlen=10000, approximate=True)
+        await self.ack_event(stream_id)
+        return True
 
     def _session_key(self, wa_id: str) -> str:
         return f"travel:conversation:{wa_id}"
@@ -110,7 +163,8 @@ class RedisStore:
         try:
             if self._client:
                 # Use Redis SET NX PX
-                lock = self._client.lock(lock_key, timeout=timeout_seconds, blocking_timeout=2.0)
+                lock = self._client.lock(lock_key, timeout=timeout_seconds,
+                                         blocking_timeout=min(timeout_seconds, 90.0))
                 acquired = await lock.acquire()
                 if acquired:
                     lock_acquired = True
@@ -196,6 +250,23 @@ class RedisStore:
         if 0 <= index < len(trips):
             return trips[index]
         return None
+
+    async def update_archived_trip(self, wa_id: str, trip_id: str, itinerary_data: dict):
+        """Keep My Trips consistent with the durable current itinerary version."""
+        key = self._user_trips_key(wa_id)
+        if self._client:
+            items = await self._client.lrange(key, 0, -1)
+            for i, item in enumerate(items):
+                data = json.loads(item)
+                if data.get("trip_id") == trip_id:
+                    data["itinerary_data"] = itinerary_data
+                    await self._client.lset(key, i, json.dumps(data))
+                    return
+        else:
+            for data in self._user_trips.get(wa_id, []):
+                if data.get("trip_id") == trip_id:
+                    data["itinerary_data"] = itinerary_data
+                    return
 
     # --- Global Rate Limiting / Queueing ---
     async def get_active_generations(self) -> int:

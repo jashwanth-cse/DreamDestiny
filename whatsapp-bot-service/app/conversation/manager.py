@@ -16,6 +16,8 @@ from app.understanding.guardrail import guardrail_shield
 from app.conversation.state_machine import StateMachine
 from app.conversation import prompts
 from app.services.trip_service import trip_service
+from app.services.trip_rescue import trip_rescue_service
+from app.config import settings
 from app.whatsapp.client import whatsapp_client
 from app.whatsapp.messages import build_text_message, build_button_message, format_itinerary_message
 
@@ -38,8 +40,6 @@ class ConversationManager:
             logger.info("Ignoring already processed duplicate message %s for user %s", message_id, wa_id)
             return
 
-        await redis_store.mark_message_processed(message_id)
-
         # 2. Strict Domain Guardrail Shield Check
         # If user queries off-topic matters (coding, math, politics, trivia), strictly do not respond
         is_in_scope = await guardrail_shield.is_in_scope(event.text, event.payload_id)
@@ -48,11 +48,19 @@ class ConversationManager:
             return
 
         # 3. Acquire Distributed User Lock
-        async with redis_store.user_lock(wa_id) as acquired:
+        async with redis_store.user_lock(
+            wa_id, timeout_seconds=120.0 if settings.trip_rescue_enabled else settings.lock_timeout_seconds
+        ) as acquired:
             if not acquired:
                 logger.warning("Could not acquire lock for user %s — another request in flight", wa_id)
+                if settings.trip_rescue_enabled and redis_store._client is not None:
+                    raise RuntimeError("User lock unavailable; event will be retried")
                 return
 
+            # Claim only after the lock is acquired so a busy user lock does not
+            # permanently discard Meta's retry.
+            if await redis_store.is_message_processed(message_id):
+                return
             # 4. Load or Recover Session (Redis hit -> continue; Redis miss -> Firestore recovery)
             session = await redis_store.get_session(wa_id)
             is_new_session = False
@@ -92,6 +100,14 @@ class ConversationManager:
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 ),
             )
+
+            if settings.trip_rescue_enabled:
+                if await trip_rescue_service.handle(session, event):
+                    await redis_store.mark_message_processed(message_id)
+                    return
+
+            # Keep the legacy idempotency behavior for its unchanged state machine.
+            await redis_store.mark_message_processed(message_id)
 
             # 6. Message Understanding (Deterministic + Context-Aware + LLM fallback)
             slots = await message_parser.parse(

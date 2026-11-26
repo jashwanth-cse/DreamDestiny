@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_access_token: str = ""
     whatsapp_verify_token: str = "dream_destiny_verify_token"
-    whatsapp_api_version: str = "v20.0"
+    whatsapp_api_version: str = "v25.0"
     whatsapp_app_secret: str = ""
 
     # Redis
@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 30.0
     lock_timeout_seconds: float = 10.0
     idempotency_ttl_seconds: int = 86400  # 24 hours
+    trip_rescue_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

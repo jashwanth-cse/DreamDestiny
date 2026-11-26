@@ -102,4 +102,20 @@ class PlannerGatewayClient:
             logger.error("Planner /check-transport failed: %s", exc)
             return {"status": "ERROR"}
 
+    async def propose_recovery(self, trip_request: TripRequest, itinerary: dict,
+                               change: str, commitments: list[dict], trip_id: str,
+                               correlation_id: str) -> dict:
+        client = await self.get_client()
+        try:
+            response = await client.post(
+                "/v1/recovery",
+                json={"trip": trip_request.model_dump(mode="json"), "itinerary": itinerary,
+                      "change": change, "commitments": commitments, "trip_id": trip_id},
+                headers={"X-Correlation-ID": correlation_id},
+            )
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise PlannerGatewayError("Trip Rescue is temporarily unavailable") from exc
+
 planner_gateway = PlannerGatewayClient()

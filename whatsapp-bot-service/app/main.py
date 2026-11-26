@@ -3,6 +3,7 @@ WhatsApp Bot Service — FastAPI application entry point.
 """
 
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,7 @@ from app.storage.redis_store import redis_store
 from app.storage.firestore_store import firestore_store
 from app.whatsapp.client import whatsapp_client
 from app.clients.planner_gateway import planner_gateway
+from app.services.event_worker import run_event_worker
 
 # Setup structured logging
 logging.basicConfig(
@@ -28,9 +30,31 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing WhatsApp Bot Service in %s mode...", settings.app_env)
     await redis_store.connect()
     firestore_store.connect()
+    if settings.trip_rescue_enabled and settings.app_env == "production":
+        missing = []
+        if redis_store._client is None:
+            missing.append("Redis")
+        if firestore_store._db is None:
+            missing.append("Firestore")
+        if not settings.whatsapp_app_secret:
+            missing.append("WhatsApp app secret")
+        if not settings.whatsapp_access_token or not settings.whatsapp_phone_number_id:
+            missing.append("WhatsApp Cloud API credentials")
+        if missing:
+            raise RuntimeError("Trip Rescue requires: " + ", ".join(missing))
+    worker_task = None
+    if settings.trip_rescue_enabled and redis_store._client is not None:
+        await redis_store.ensure_event_group()
+        worker_task = asyncio.create_task(run_event_worker(), name="whatsapp-event-worker")
     yield
     # Shutdown
     logger.info("Shutting down WhatsApp Bot Service...")
+    if worker_task:
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
     await redis_store.close()
     await whatsapp_client.close()
     await planner_gateway.close()
@@ -82,9 +106,12 @@ async def health_check():
 @app.get("/ready", tags=["Health"])
 async def readiness_check():
     """Readiness probe — verifies downstream dependencies and configs."""
-    redis_ok = bool(redis_store._client is not None or redis_store._memory_cache is not None)
+    redis_ok = redis_store._client is not None
+    firestore_ok = firestore_store._db is not None
     return {
-        "status": "ready",
+        "status": "ready" if not settings.trip_rescue_enabled or (redis_ok and firestore_ok) else "degraded",
         "redis_configured": redis_ok,
+        "firestore_configured": firestore_ok,
+        "trip_rescue_enabled": settings.trip_rescue_enabled,
         "planner_gateway": settings.planner_gateway_url,
     }

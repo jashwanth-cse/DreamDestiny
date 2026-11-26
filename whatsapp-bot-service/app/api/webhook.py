@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, Response, BackgroundTasks, Query, HTTPEx
 from app.schemas.webhook import WebhookPayload, NormalizedEvent
 from app.conversation.manager import conversation_manager
 from app.config import settings
+from app.storage.redis_store import redis_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Webhook"])
@@ -45,6 +46,9 @@ async def receive_webhook(
     Quickly returns HTTP 200 OK to acknowledge Meta, dispatching processing in background.
     """
     # ── Meta HMAC-SHA256 Signature Verification ─────────────────────────────
+    if settings.trip_rescue_enabled and settings.app_env != "test" and not settings.whatsapp_app_secret:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="WhatsApp webhook signature verification is not configured")
     if settings.whatsapp_app_secret and settings.app_env != "test":
         signature = request.headers.get("X-Hub-Signature-256", "")
         if not signature:
@@ -79,7 +83,15 @@ async def receive_webhook(
                     event.message_type.value,
                     event.wa_id,
                 )
-                # Dispatch processing without blocking webhook acknowledgment
-                background_tasks.add_task(conversation_manager.process_incoming_event, event)
+                if settings.trip_rescue_enabled and redis_store._client is not None:
+                    # Acknowledge Meta only after durable stream insertion.
+                    try:
+                        await redis_store.enqueue_event(event.model_dump_json())
+                    except Exception as exc:
+                        logger.exception("Could not queue WhatsApp event %s", event.message_id)
+                        raise HTTPException(status_code=503, detail="Webhook queue unavailable") from exc
+                else:
+                    # Existing development and legacy path.
+                    background_tasks.add_task(conversation_manager.process_incoming_event, event)
 
     return {"status": "received"}

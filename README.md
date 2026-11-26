@@ -163,6 +163,12 @@ Traditional travel planning is broken across 5+ disparate tabs: checking train a
 
 ## ✨ Core Features
 
+### Trip Rescue (opt-in)
+
+The new **Trip Rescue** flow lets a traveler report a delay, cancellation, or closure after saving a trip. Independent mobility and experience agents research source-backed alternatives; the traveler chooses an option and explicitly approves an itinerary update. The update does not book, cancel, or pay for travel. `TRIP_RESCUE_ENABLED=false` keeps the existing planner flow unchanged by default.
+
+See [Trip Rescue implementation and local WhatsApp sandbox testing](docs/TRIP_RESCUE.md) for setup, API behavior, current limits, and test commands.
+
 | Capability | Integration Provider | Description |
 |:---|:---:|:---|
 | **🧠 Generative Itinerary Synthesis** | ![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-FF9900?style=flat-square&logo=amazonaws&logoColor=white) | Foundation models turn unstructured conversation into structured, timed itineraries. |
@@ -287,7 +293,7 @@ WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id
 WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
 WHATSAPP_VERIFY_TOKEN=dream_destiny_verify_token
 WHATSAPP_APP_SECRET=your_whatsapp_app_secret
-WHATSAPP_API_VERSION=v20.0
+WHATSAPP_API_VERSION=v25.0
 
 # --- MONITORING (DOZZLE) ---
 DOZZLE_USERNAME=admin
