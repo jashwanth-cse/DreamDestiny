@@ -33,8 +33,10 @@ def test_webhook_verification_failure():
     assert response.status_code == 403
 
 
-def test_health_and_readiness_probes():
+def test_health_and_readiness_probes(monkeypatch):
     """Verify health and readiness probes respond with 200 OK."""
+    # The test must not depend on whether the developer's untracked .env enables Rescue.
+    monkeypatch.setattr(settings, "trip_rescue_enabled", False)
     health_resp = client.get("/health")
     assert health_resp.status_code == 200
     assert health_resp.json()["status"] == "ok"

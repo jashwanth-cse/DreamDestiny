@@ -104,13 +104,14 @@ class PlannerGatewayClient:
 
     async def propose_recovery(self, trip_request: TripRequest, itinerary: dict,
                                change: str, commitments: list[dict], trip_id: str,
-                               correlation_id: str) -> dict:
+                               correlation_id: str, current_location: dict | None = None) -> dict:
         client = await self.get_client()
         try:
             response = await client.post(
                 "/v1/recovery",
                 json={"trip": trip_request.model_dump(mode="json"), "itinerary": itinerary,
-                      "change": change, "commitments": commitments, "trip_id": trip_id},
+                      "change": change, "commitments": commitments, "trip_id": trip_id,
+                      "current_location": current_location},
                 headers={"X-Correlation-ID": correlation_id},
             )
             response.raise_for_status()

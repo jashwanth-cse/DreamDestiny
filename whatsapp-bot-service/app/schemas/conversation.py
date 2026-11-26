@@ -34,6 +34,7 @@ class ConversationState(str, Enum):
     VIEWING_TRIPS = "VIEWING_TRIPS"
     ERROR = "ERROR"
     RECOVERY_CHANGE = "RECOVERY_CHANGE"
+    RECOVERY_LOCATION = "RECOVERY_LOCATION"
     RECOVERY_CHOICE = "RECOVERY_CHOICE"
     RECOVERY_APPROVAL = "RECOVERY_APPROVAL"
 
@@ -52,6 +53,7 @@ class UserSession(BaseModel):
     current_trip_id: Optional[str] = None
     pending_recovery_id: Optional[str] = None
     pending_recovery_option_id: Optional[str] = None
+    pending_recovery_change: Optional[str] = None
     last_message_id: Optional[str] = None
     last_activity: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     version: int = 1

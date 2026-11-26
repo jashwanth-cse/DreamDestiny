@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     # ── Gemini / LLM ──────────────────────────────────────────────────────
     bedrock_api_key: str = ""          # Required for POST /plan
+    google_maps_api_key: str = ""     # Nearby Trip Rescue Places, Geocoding and Routes
     llm_timeout: float = 60.0         # seconds — LLM calls take longer
 
     # ── CORS ───────────────────────────────────────────────────────────────

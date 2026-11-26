@@ -40,6 +40,13 @@ class TextPayload(BaseModel):
     body: str
 
 
+class LocationPayload(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    name: Optional[str] = None
+    address: Optional[str] = None
+
+
 class ContactProfile(BaseModel):
     name: Optional[str] = None
 
@@ -56,6 +63,7 @@ class RawMessage(BaseModel):
     type: str
     text: Optional[TextPayload] = None
     interactive: Optional[InteractivePayload] = None
+    location: Optional[LocationPayload] = None
 
 
 class Value(BaseModel):
@@ -89,6 +97,8 @@ class NormalizedEvent(BaseModel):
     message_type: MessageType
     text: str = ""
     payload_id: Optional[str] = None  # Button ID or List ID if interactive
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     @classmethod
     def from_raw_message(cls, msg: RawMessage, contact: Optional[Contact] = None) -> "NormalizedEvent":
@@ -134,6 +144,13 @@ class NormalizedEvent(BaseModel):
                 timestamp=msg.timestamp,
                 message_type=MessageType.BUTTON,
                 text=msg.text.body if msg.text else "",
+            )
+        elif msg.type == "location" and msg.location:
+            return cls(
+                wa_id=wa_id, user_name=user_name, message_id=msg.id,
+                timestamp=msg.timestamp, message_type=MessageType.LOCATION,
+                text=msg.location.name or msg.location.address or "Shared location",
+                latitude=msg.location.latitude, longitude=msg.location.longitude,
             )
 
         return cls(

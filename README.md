@@ -167,6 +167,8 @@ Traditional travel planning is broken across 5+ disparate tabs: checking train a
 
 The new **Trip Rescue** flow lets a traveler report a delay, cancellation, or closure after saving a trip. Independent mobility and experience agents research source-backed alternatives; the traveler chooses an option and explicitly approves an itinerary update. The update does not book, cancel, or pay for travel. `TRIP_RESCUE_ENABLED=false` keeps the existing planner flow unchanged by default.
 
+If the traveler has already arrived late, the bot requests a current location pin or precise landmark and offers nearby hotel and sightseeing suggestions grounded in Google Places and Routes. It does not suggest another outbound ticket or claim that a room is available.
+
 See [Trip Rescue implementation and local WhatsApp sandbox testing](docs/TRIP_RESCUE.md) for setup, API behavior, current limits, and test commands.
 
 | Capability | Integration Provider | Description |

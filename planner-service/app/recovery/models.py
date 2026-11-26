@@ -36,6 +36,21 @@ class RecoveryRequest(BaseModel):
     commitments: list[Commitment] = Field(default_factory=list)
     trip_id: str | None = None
     event_id: str | None = None
+    current_location: "RecoveryLocation | None" = None
+
+
+class RecoveryLocation(BaseModel):
+    address: str | None = Field(default=None, max_length=250)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def check_location(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Latitude and longitude must be supplied together")
+        if self.latitude is None and not (self.address or "").strip():
+            raise ValueError("A location or address is required")
+        return self
 
 
 class Evidence(BaseModel):
@@ -47,7 +62,7 @@ class Evidence(BaseModel):
 
 class RecoveryOption(BaseModel):
     id: str
-    category: Literal["mobility", "experience", "keep"]
+    category: Literal["mobility", "experience", "keep", "nearby_stay"]
     title: str
     reason: str
     price: float | None = Field(default=None, ge=0)
@@ -57,6 +72,10 @@ class RecoveryOption(BaseModel):
     source_id: str | None = None
     evidence: Evidence | None = None
     warnings: list[str] = Field(default_factory=list)
+    distance_km: float | None = None
+    travel_minutes: int | None = None
+    maps_url: str | None = None
+    nearby_activities: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class AgentTrace(BaseModel):
@@ -69,7 +88,7 @@ class AgentTrace(BaseModel):
 
 class RecoveryResult(BaseModel):
     status: Literal["ready", "needs_clarification", "no_verified_options"]
-    change_kind: Literal["delay", "cancellation", "closure", "preference", "unknown"]
+    change_kind: Literal["delay", "arrival_delay", "cancellation", "closure", "preference", "unknown"]
     affected_commitment_ids: list[str] = Field(default_factory=list)
     clarification: str | None = None
     options: list[RecoveryOption] = Field(default_factory=list)
@@ -77,3 +96,4 @@ class RecoveryResult(BaseModel):
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime | None = None
     disclaimer: str = "Search results are not bookings. Recheck availability before paying."
+    location: RecoveryLocation | None = None

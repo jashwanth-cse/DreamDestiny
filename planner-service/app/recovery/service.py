@@ -5,15 +5,21 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import re
 
-from app.recovery.agents import ContextTools, ExperienceAgent, MobilityAgent, classify_change
-from app.recovery.models import RecoveryRequest, RecoveryResult, RecoveryOption
+from app.recovery.agents import (ContextTools, ExperienceAgent, MobilityAgent,
+                                 NearbyExperienceAgent, NearbyStayAgent, classify_change)
+from app.recovery.models import (Evidence, RecoveryLocation, RecoveryRequest,
+                                 RecoveryResult, RecoveryOption)
+from app.recovery.nearby import NearbyProvider, NearbySearchError
 
 
 class RecoveryService:
-    def __init__(self, orchestrator, llm, now=None):
+    def __init__(self, orchestrator, llm, now=None, nearby=None):
         self.orchestrator = orchestrator
         self.mobility = MobilityAgent(llm)
         self.experience = ExperienceAgent(llm)
+        self.nearby_stay = NearbyStayAgent(llm)
+        self.nearby_experience = NearbyExperienceAgent(llm)
+        self.nearby = nearby or NearbyProvider()
         self.now = now or (lambda: datetime.now(timezone.utc))
 
     async def recover(self, request: RecoveryRequest) -> RecoveryResult:
@@ -25,6 +31,8 @@ class RecoveryService:
         if request.trip.end_date < local_today:
             return RecoveryResult(status="needs_clarification", change_kind=kind,
                                   clarification="This saved trip has ended. Please start a new trip for new travel dates.")
+        if kind == "arrival_delay":
+            return await self._recover_arrival(request)
         matched = [c for c in request.commitments if c.title.casefold() in request.change.casefold()]
         if not matched and kind in {"delay", "cancellation"}:
             transports = sorted((c for c in request.commitments if c.kind == "transport" and c.starts_at),
@@ -79,4 +87,57 @@ class RecoveryService:
             affected_commitment_ids=affected, options=chosen,
             traces=[mobility_trace, experience_trace],
             expires_at=min((o.evidence.valid_until for o in chosen), default=None),
+        )
+
+    async def _recover_arrival(self, request: RecoveryRequest) -> RecoveryResult:
+        if request.current_location is None:
+            return RecoveryResult(status="needs_clarification", change_kind="arrival_delay",
+                clarification="You have already arrived. Please share your current WhatsApp location pin or a nearby landmark so I can find a nearby stay and sightseeing.")
+        try:
+            location, hotels, sights = await self.nearby.search(
+                request.current_location, request.trip.destination)
+        except NearbySearchError as exc:
+            return RecoveryResult(status="needs_clarification", change_kind="arrival_delay",
+                                  clarification=str(exc))
+
+        fetched_at = self.now()
+        evidence = lambda: Evidence(provider="Google Places and Routes", fetched_at=fetched_at,
+                                    valid_until=fetched_at + timedelta(minutes=15),
+                                    source_status="search_result")
+        hotel_options = [RecoveryOption(
+            id=f"nearby:hotel:{p['id']}", category="nearby_stay", title=p["name"],
+            reason=f"{p['travel_minutes']} min drive from your shared location",
+            source_id=p["id"], evidence=evidence(), distance_km=p["distance_km"],
+            travel_minutes=p["travel_minutes"], maps_url=p["maps_url"],
+            warnings=["Room availability, check-in and price are not verified"],
+        ) for p in hotels[:6]]
+        sight_options = [RecoveryOption(
+            id=f"nearby:activity:{p['id']}", category="experience", title=p["name"],
+            reason=f"{p['travel_minutes']} min drive from your shared location",
+            source_id=p["id"], evidence=evidence(), distance_km=p["distance_km"],
+            travel_minutes=p["travel_minutes"], maps_url=p["maps_url"],
+            warnings=["Opening hours and entry fees are not verified"],
+        ) for p in sights[:8]]
+        (selected_hotels, hotel_trace), (selected_sights, sight_trace) = await asyncio.gather(
+            self.nearby_stay.run(hotel_options, request.change),
+            self.nearby_experience.run(sight_options, request.change),
+        )
+        if hotel_options:
+            # The closest routed stay is always present even if model ranking omits it.
+            selected_hotels = [hotel_options[0]] + [
+                p for p in selected_hotels if p.id != hotel_options[0].id]
+        nearby_activities = [{"id": p.source_id, "name": p.title,
+                              "travel_minutes": p.travel_minutes, "maps_url": p.maps_url}
+                             for p in selected_sights[:2]]
+        for hotel in selected_hotels:
+            hotel.nearby_activities = nearby_activities
+        # Never offer a replacement outbound bus after the traveler reports arrival.
+        chosen = selected_hotels[:3] or selected_sights[:3]
+        return RecoveryResult(
+            status="ready" if chosen else "no_verified_options", change_kind="arrival_delay",
+            options=chosen, traces=[hotel_trace, sight_trace],
+            location=RecoveryLocation(latitude=location.latitude, longitude=location.longitude,
+                                      address=location.address),
+            expires_at=fetched_at + timedelta(minutes=15) if chosen else None,
+            disclaimer="Nearby Places are not room or ticket inventory. Confirm availability, hours and price directly.",
         )

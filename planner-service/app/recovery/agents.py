@@ -125,8 +125,48 @@ class ExperienceAgent:
         return [lookup[x] for x in ids], AgentTrace(agent=self.name, tools=["experience_options"], considered=len(candidates), selected=ids)
 
 
+class NearbyStayAgent:
+    name = "nearby_stay"
+
+    def __init__(self, llm):
+        self.llm = llm
+
+    async def run(self, candidates: list[RecoveryOption], change: str):
+        ids = await _select_ids(self.llm,
+            "You are a local lodging agent. Select nearby hotels that fit an arrived traveler. "
+            "Google Places is location data, not room inventory; never claim availability or price.",
+            candidates[:6], change)
+        lookup = {x.id: x for x in candidates}
+        selected = [lookup[x] for x in ids]
+        selected.sort(key=lambda x: (x.travel_minutes or 9999, x.distance_km or 9999))
+        return selected, AgentTrace(agent=self.name, tools=["google_places_hotels", "routes_matrix"],
+                                    considered=len(candidates), selected=ids)
+
+
+class NearbyExperienceAgent:
+    name = "nearby_experience"
+
+    def __init__(self, llm):
+        self.llm = llm
+
+    async def run(self, candidates: list[RecoveryOption], change: str):
+        ids = await _select_ids(self.llm,
+            "You are a local sightseeing agent. Select nearby places for a late arrival. "
+            "Do not claim that a venue is open or that tickets are available.",
+            candidates[:8], change)
+        lookup = {x.id: x for x in candidates}
+        selected = [lookup[x] for x in ids]
+        selected.sort(key=lambda x: (x.travel_minutes or 9999, x.distance_km or 9999))
+        return selected, AgentTrace(agent=self.name, tools=["google_places_attractions", "routes_matrix"],
+                                    considered=len(candidates), selected=ids)
+
+
 def classify_change(change: str) -> str:
     text = change.casefold()
+    # Arrival has already happened: a replacement outbound ticket is irrelevant.
+    if (re.search(r"\b(arriv(?:e|ed)|reach(?:ed)?|got to|made it to)\b", text)
+            and re.search(r"\b(delayed|delay|late|stuck)\b", text)):
+        return "arrival_delay"
     if re.search(r"\b(cancelled|canceled|cancel|missed)\b", text):
         return "cancellation"
     if re.search(r"\b(delayed|delay|late|stuck)\b", text):

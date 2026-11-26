@@ -25,6 +25,94 @@ def _webhook(message_id, body=None, button=None):
             "contacts": [{"wa_id": "919900000001", "profile": {"name": "Test Traveler"}}]}}]}]}
 
 
+def _location_webhook(message_id):
+    payload = _webhook(message_id, "placeholder")
+    payload["entry"][0]["changes"][0]["value"]["messages"][0].update(
+        type="location", location={"latitude": 17.378, "longitude": 78.48,
+                                   "name": "MGBS bus station", "address": "Hyderabad"})
+    payload["entry"][0]["changes"][0]["value"]["messages"][0].pop("text")
+    return payload
+
+
+def test_arrived_late_collects_pin_then_updates_nearby_stay_and_sights(monkeypatch):
+    async def run():
+        monkeypatch.setattr(settings, "app_env", "test")
+        monkeypatch.setattr(settings, "trip_rescue_enabled", True)
+        redis_store._client = None
+        redis_store._memory_cache.clear()
+        firestore_store._db = None
+        firestore_store._trips.clear()
+        firestore_store._itineraries.clear()
+        firestore_store._recovery_runs.clear()
+        whatsapp_client._sent_messages_log.clear()
+        trip = TripRecord(wa_id="919900000001", conversation_id="conv_arrival", origin="Chennai",
+            destination="Hyderabad", start_date="2026-11-26", end_date="2026-11-28",
+            travelers=1, trip_request_data={"origin": "Chennai", "destination": "Hyderabad",
+            "start_date": "2026-11-26", "end_date": "2026-11-28", "travelers": 1})
+        await firestore_store.save_trip(trip)
+        await firestore_store.save_itinerary_version(trip.wa_id, trip.trip_id,
+            ItineraryVersionRecord(itinerary_data={"hotel": {"hotel_name": "Old suggestion"},
+                "days": [{"day": 1, "activities": [{"attraction_name": "Far Museum"}]}]}))
+        await redis_store.save_session(UserSession(wa_id=trip.wa_id, current_trip_id=trip.trip_id,
+                                                  state="COMPLETED"))
+        calls = []
+        async def fake_recovery(*args):
+            calls.append(args)
+            expiry = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+            return {"status": "ready", "change_kind": "arrival_delay",
+                "location": {"latitude": 17.378, "longitude": 78.48, "address": "MGBS, Hyderabad"},
+                "options": [{"id": "nearby:hotel:place-1", "category": "nearby_stay",
+                    "title": "Nearby Hotel", "source_id": "place-1", "price": None,
+                    "reason": "6 min drive", "warnings": ["Availability not verified"],
+                    "maps_url": "https://maps.example/hotel",
+                    "nearby_activities": [{"id": "sight-1", "name": "City Museum",
+                                           "maps_url": "https://maps.example/museum"}],
+                    "evidence": {"valid_until": expiry}}], "expires_at": expiry}
+        monkeypatch.setattr(planner_gateway, "propose_recovery", fake_recovery)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            for ident, payload in [
+                ("a1", _webhook("a1", "Trip Rescue")),
+                ("a2", _webhook("a2", "The bus was late and I reached Hyderabad by 9 am only")),
+            ]:
+                assert (await client.post("/webhook", json=payload)).status_code == 200
+            assert not calls  # Arrival must ask for location before querying providers.
+            assert "location" in str(whatsapp_client._sent_messages_log[-1]).lower()
+            for ident, payload in [
+                ("a3", _location_webhook("a3")),
+                ("a4", _webhook("a4", "Option 1", "rescue_pick_0")),
+                ("a5", _webhook("a5", "Apply update", "rescue_approve")),
+            ]:
+                assert (await client.post("/webhook", json=payload)).status_code == 200
+        assert len(calls) == 2
+        assert calls[0][-1]["latitude"] == 17.378
+        latest = await firestore_store.get_latest_itinerary(trip.wa_id, trip.trip_id)
+        assert latest.version_number == 2
+        assert latest.itinerary_data["hotel"]["hotel_name"] == "Nearby Hotel"
+        assert latest.itinerary_data["days"][0]["activities"][0]["attraction_name"] == "City Museum"
+        assert "outbound_transport" not in latest.itinerary_data
+    asyncio.run(run())
+
+
+def test_nearby_itinerary_keeps_confirmed_activity_and_transport():
+    from app.services.trip_rescue import _revised_itinerary
+    trip = TripRecord(wa_id="owner", conversation_id="conv", origin="Chennai",
+        destination="Hyderabad", start_date="2026-11-26", end_date="2026-11-28",
+        travelers=1, trip_request_data={},
+        commitments=[{"kind": "activity", "title": "Booked tour", "confirmed": True}])
+    current = {"outbound_transport": {"mode": "bus", "operator_name": "Original"},
+        "days": [{"day": 1, "activities": [
+            {"attraction_name": "Booked tour"}, {"attraction_name": "Far attraction"}]}]}
+    option = {"id": "nearby:hotel:place-1", "category": "nearby_stay",
+        "source_id": "place-1", "title": "Nearby Hotel",
+        "nearby_activities": [{"id": "sight-1", "name": "City Museum"}]}
+    revised = _revised_itinerary(current, "I arrived late", option, trip)
+    names = [a["attraction_name"] for a in revised["days"][0]["activities"]]
+    assert names == ["Booked tour", "City Museum"]
+    assert revised["outbound_transport"] == current["outbound_transport"]
+    assert "hotel" not in current  # copy-on-write
+
+
 def test_webhook_recovery_choice_approval_and_duplicate_delivery(monkeypatch):
     async def run():
         monkeypatch.setattr(settings, "app_env", "test")
