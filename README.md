@@ -171,6 +171,8 @@ If the traveler has already arrived late, the bot requests a current location pi
 
 An optional contextual mode (`TRIP_RESCUE_CONTEXTUAL_ENABLED=true`, alongside `TRIP_RESCUE_ENABLED=true`) asks the traveler to choose the saved trip, then accepts a free-text disruption. Bedrock routes the issue to only the needed providers and selects one provider-backed recommendation. The bot automatically versions the suggested itinerary after that trip confirmation. It does not buy or cancel supplier bookings. See the Trip Rescue guide for limits and testing.
 
+Trip Rescue's free-text detail extraction uses Bedrock Converse when `BEDROCK_CONVERSE_MODEL_ID` and `BEDROCK_REGION` are configured with runtime access; otherwise it uses the existing Bedrock chat model. Recent rescue turns and extracted details are stored in the Redis session, so a missed return bus can be understood across messages. Gemma 4 31B, used by the existing planner, is not a Converse model. See the Trip Rescue guide for configuration and fallback behavior.
+
 See [Trip Rescue implementation and local WhatsApp sandbox testing](docs/TRIP_RESCUE.md) for setup, API behavior, current limits, and test commands.
 
 | Capability | Integration Provider | Description |

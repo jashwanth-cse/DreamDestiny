@@ -77,7 +77,8 @@ class ContextTools:
         return found
 
 
-async def _select_ids(llm, instruction: str, candidates: list[RecoveryOption], change: str) -> list[str]:
+async def _select_ids(llm, instruction: str, candidates: list[RecoveryOption], change: str,
+                      rescue_context: dict | None = None) -> list[str]:
     if not candidates:
         return []
     # Hard limit: bounded model input, one model call, maximum three selections.
@@ -86,7 +87,7 @@ async def _select_ids(llm, instruction: str, candidates: list[RecoveryOption], c
     try:
         raw = await asyncio.wait_for(llm.generate_json(
             system_prompt=instruction + " Select up to 3 candidate IDs. Never invent an ID. Return JSON only.",
-            user_data={"change": change, "candidates": brief},
+            user_data={"change": change, "candidates": brief, **(rescue_context or {})},
             json_schema={"type": "object", "properties": {"ids": {"type": "array", "items": {"type": "string"}}}, "required": ["ids"]},
         ), timeout=35)
         ids = raw.get("ids", [])
@@ -103,9 +104,9 @@ class MobilityAgent:
     def __init__(self, llm):
         self.llm = llm
 
-    async def run(self, tools: ContextTools, change: str):
+    async def run(self, tools: ContextTools, change: str, rescue_context: dict | None = None):
         candidates = tools.mobility_options()
-        ids = await _select_ids(self.llm, "You are a mobility recovery agent. Prefer affordable, available transport that fits the reported disruption.", candidates, change)
+        ids = await _select_ids(self.llm, "You are a mobility recovery agent. Prefer affordable, available transport that fits the reported disruption.", candidates, change, rescue_context)
         lookup = {x.id: x for x in candidates}
         return [lookup[x] for x in ids], AgentTrace(agent=self.name, tools=["mobility_options"], considered=len(candidates), selected=ids)
 
@@ -116,11 +117,11 @@ class ExperienceAgent:
     def __init__(self, llm):
         self.llm = llm
 
-    async def run(self, tools: ContextTools, change: str):
+    async def run(self, tools: ContextTools, change: str, rescue_context: dict | None = None):
         candidates = tools.experience_options()
         # A closed venue must never be returned as its own replacement.
         candidates = [x for x in candidates if x.title.casefold() not in change.casefold()]
-        ids = await _select_ids(self.llm, "You are a local experience recovery agent. Suggest relevant nearby activities, never the closed venue itself.", candidates, change)
+        ids = await _select_ids(self.llm, "You are a local experience recovery agent. Suggest relevant nearby activities, never the closed venue itself.", candidates, change, rescue_context)
         lookup = {x.id: x for x in candidates}
         return [lookup[x] for x in ids], AgentTrace(agent=self.name, tools=["experience_options"], considered=len(candidates), selected=ids)
 
@@ -131,11 +132,11 @@ class NearbyStayAgent:
     def __init__(self, llm):
         self.llm = llm
 
-    async def run(self, candidates: list[RecoveryOption], change: str):
+    async def run(self, candidates: list[RecoveryOption], change: str, rescue_context: dict | None = None):
         ids = await _select_ids(self.llm,
             "You are a local lodging agent. Select nearby hotels that fit an arrived traveler. "
             "Google Places is location data, not room inventory; never claim availability or price.",
-            candidates[:6], change)
+            candidates[:6], change, rescue_context)
         lookup = {x.id: x for x in candidates}
         selected = [lookup[x] for x in ids]
         selected.sort(key=lambda x: (x.travel_minutes or 9999, x.distance_km or 9999))
@@ -149,11 +150,11 @@ class NearbyExperienceAgent:
     def __init__(self, llm):
         self.llm = llm
 
-    async def run(self, candidates: list[RecoveryOption], change: str):
+    async def run(self, candidates: list[RecoveryOption], change: str, rescue_context: dict | None = None):
         ids = await _select_ids(self.llm,
             "You are a local sightseeing agent. Select nearby places for a late arrival. "
             "Do not claim that a venue is open or that tickets are available.",
-            candidates[:8], change)
+            candidates[:8], change, rescue_context)
         lookup = {x.id: x for x in candidates}
         selected = [lookup[x] for x in ids]
         selected.sort(key=lambda x: (x.travel_minutes or 9999, x.distance_km or 9999))

@@ -9,9 +9,28 @@ from app.orchestration.trip_orchestrator import TripOrchestrator
 from app.recovery.models import RecoveryRequest, RecoveryResult
 from app.recovery.service import RecoveryService
 from app.recovery.contextual import ContextualRecoveryService
+from app.recovery.interpreter import (ConverseRescueClient, RescueExtraction,
+                                      RescueExtractionRequest, RescueWordingRequest)
 from app.services.llm.llm_client import BedrockLLMClient
 
 router = APIRouter(prefix="/v1/recovery", tags=["Trip Rescue"])
+
+
+@router.post("/extract", response_model=RescueExtraction)
+async def extract_recovery(request: RescueExtractionRequest):
+    try:
+        return await ConverseRescueClient().extract(request)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Rescue interpretation is unavailable") from exc
+
+
+@router.post("/word-options")
+async def word_recovery_options(request: RescueWordingRequest):
+    try:
+        return {"reply": await ConverseRescueClient().word_options(request)}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Rescue wording is unavailable") from exc
+
 def get_recovery_service():
     # A fresh orchestrator avoids the ordinary planner's 15-minute result cache.
     # Recovery must re-query providers before presenting or applying an option.

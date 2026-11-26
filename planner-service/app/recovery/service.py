@@ -10,6 +10,7 @@ from app.recovery.agents import (ContextTools, ExperienceAgent, MobilityAgent,
 from app.recovery.models import (Evidence, RecoveryLocation, RecoveryRequest,
                                  RecoveryResult, RecoveryOption)
 from app.recovery.nearby import NearbyProvider, NearbySearchError
+from app.recovery.interpreter import compact_trip
 
 
 class RecoveryService:
@@ -60,12 +61,14 @@ class RecoveryService:
         fetched_at = self.now()
         direction = "return" if re.search(r"\b(return|back home|homebound)\b", request.change.casefold()) else "outbound"
         tools = ContextTools(context, fetched_at, direction)
+        rescue_context = self._model_context(request)
         # Independent specialists execute concurrently; the supervisor combines only
         # their grounded outputs after deterministic validation.
         mobility_result, experience_result = await asyncio.gather(
-            self.mobility.run(tools, request.change),
-            self.experience.run(tools, request.change),
+            self.mobility.run(tools, request.change, rescue_context),
+            self.experience.run(tools, request.change, rescue_context),
         )
+
         mobility, mobility_trace = mobility_result
         experience, experience_trace = experience_result
         pool = (experience if kind == "closure" else mobility + experience)
@@ -88,6 +91,13 @@ class RecoveryService:
             traces=[mobility_trace, experience_trace],
             expires_at=min((o.evidence.valid_until for o in chosen), default=None),
         )
+
+    @staticmethod
+    def _model_context(request: RecoveryRequest) -> dict:
+        return {"trip": compact_trip(request.trip, request.itinerary),
+                "history_summary": request.rescue_history_summary,
+                "history": request.rescue_history[-10:],
+                "extracted_fields": request.extracted_fields}
 
     async def _recover_arrival(self, request: RecoveryRequest) -> RecoveryResult:
         if request.current_location is None:
@@ -119,8 +129,8 @@ class RecoveryService:
             warnings=["Opening hours and entry fees are not verified"],
         ) for p in sights[:8]]
         (selected_hotels, hotel_trace), (selected_sights, sight_trace) = await asyncio.gather(
-            self.nearby_stay.run(hotel_options, request.change),
-            self.nearby_experience.run(sight_options, request.change),
+            self.nearby_stay.run(hotel_options, request.change, self._model_context(request)),
+            self.nearby_experience.run(sight_options, request.change, self._model_context(request)),
         )
         if hotel_options:
             # The closest routed stay is always present even if model ranking omits it.

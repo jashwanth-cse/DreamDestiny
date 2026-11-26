@@ -1,5 +1,15 @@
 # Trip Rescue implementation and local testing
 
+## Natural-language rescue details
+
+For Bedrock Converse interpretation, set `BEDROCK_CONVERSE_MODEL_ID` to a model enabled for **Converse** in `BEDROCK_REGION`, alongside the existing `BEDROCK_API_KEY`. The API key must have access to the Bedrock Runtime Converse endpoint. The existing Gemma 4 31B planner model uses Bedrock's OpenAI-compatible endpoint and does not support Converse. Do not set the Converse model ID to `google.gemma-4-31b`. When Converse is not configured or unavailable, rescue interpretation uses the existing Bedrock Chat Completions model at temperature 0.1; if that also fails, the bot presents guided choices.
+
+In both Trip Rescue modes, the bot sends the saved trip's dates and transport legs, the current message, the last ten rescue turns, a compact summary of older turns, and previously extracted fields to the rescue extraction endpoint. The Redis session persists these fields per WhatsApp number. The model returns strict JSON at temperature 0.1. Invalid JSON is retried once; if interpretation remains unavailable, the bot offers a four-choice WhatsApp list. After two unknown interpretations, it shows the same list instead of repeating the question. The bot also prevents sending the same reply twice consecutively.
+
+For a missed return bus, the bot can ask one specific question (for example, current location), then recognizes a later explanation such as traffic using the earlier turn. It searches the **return** leg. A second model call words up to three provider-backed alternatives for WhatsApp; it includes only prices and times present in the provider results. If wording fails validation, the existing sourced option list is sent. Selecting an option and applying the suggested itinerary update still follow the existing approval flow when contextual mode is off. Supplier tickets are not changed.
+
+Manual WhatsApp check with a saved active Hyderabad trip: send `Trip Rescue` → `i left the return bus` → expect one question such as `Where are you now?` → send `i left my return bus due to traffic` → expect return-leg alternatives or a clear provider-unavailable message, never the first question repeated. Send `Trip Rescue` again and `train is cancelled` to check train interpretation. For the loop guard, send `gibberish` twice; the second response should be a list with Missed transport, Delay, Cancellation, and Change plan. If the selected trip is over, Trip Rescue reports that separately and does not suggest expired travel.
+
 Trip Rescue is an opt-in extension to the existing WhatsApp trip planner. It is **off by default** (`TRIP_RESCUE_ENABLED=false`). The original `POST /plan`, onboarding, PDF, and review flows are unchanged when the flag is off.
 
 ## Contextual auto-recovery (separate opt-in)

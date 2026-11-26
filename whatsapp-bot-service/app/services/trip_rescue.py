@@ -20,9 +20,32 @@ from app.schemas.trip import TripRequest
 from app.storage.firestore_store import firestore_store
 from app.storage.redis_store import redis_store
 from app.whatsapp.client import whatsapp_client
-from app.whatsapp.messages import build_button_message, build_text_message
+from app.whatsapp.messages import build_button_message, build_list_message, build_text_message
 
 logger = logging.getLogger(__name__)
+
+RESCUE_CATEGORIES = [
+    ("rescue_kind_missed", "Missed transport"),
+    ("rescue_kind_delay", "Delay"),
+    ("rescue_kind_cancel", "Cancellation"),
+    ("rescue_kind_change", "Change plan"),
+]
+
+
+def _remember(session: UserSession, role: str, text: str) -> None:
+    session.rescue_history.append({"role": role, "text": text[:500]})
+    if len(session.rescue_history) > 10:
+        old = session.rescue_history[:-10]
+        brief = " ".join(f"{turn['role']}: {turn['text'][:90]}" for turn in old)
+        session.rescue_history_summary = (session.rescue_history_summary + " " + brief)[-500:]
+        session.rescue_history = session.rescue_history[-10:]
+
+
+def _canonical_change(fields: dict) -> str:
+    kind = fields.get("disruption_type", "unknown")
+    item = str(fields.get("affected_item", "unknown")).replace("_", " ")
+    cause = str(fields.get("cause") or "")[:120]
+    return f"{kind} {item} {cause}".strip()
 
 
 def _utc(value: str) -> datetime:
@@ -145,17 +168,40 @@ def _revised_itinerary(current: dict, change: str, option: dict, trip) -> dict:
 
 
 class TripRescueService:
+    async def _category_buttons(self, session: UserSession, alternate: bool = False):
+        choices = ("I couldn't identify the change yet. Choose one to continue.",
+                   "I still need the type of change. Choose one below.")
+        body = choices[1 if alternate else 0]
+        if body == session.rescue_last_bot_reply:
+            body = choices[0 if alternate else 1]
+        payload = build_list_message(session.wa_id, body, "Choose change", [{
+            "title": "Trip change", "rows": [
+                {"id": ident, "title": title, "description": ""}
+                for ident, title in RESCUE_CATEGORIES]}])
+        if not await whatsapp_client.send_message_payload(payload):
+            raise RuntimeError("WhatsApp send failed")
+        session.rescue_last_bot_reply = body
+        _remember(session, "assistant", body)
+        await redis_store.save_session(session)
+
     async def _send(self, session: UserSession, message: str, buttons=None):
+        if message == session.rescue_last_bot_reply:
+            await self._category_buttons(session, alternate=True)
+            return
         payload = (build_button_message(session.wa_id, message, buttons)
                    if buttons else build_text_message(session.wa_id, message))
         if not await whatsapp_client.send_message_payload(payload):
             raise RuntimeError("WhatsApp send failed")
+        session.rescue_last_bot_reply = message
+        _remember(session, "assistant", message)
+        await redis_store.save_session(session)
 
     async def handle(self, session: UserSession, event: NormalizedEvent) -> bool:
         text = (event.text or "").strip()
         lower = text.casefold()
         payload = event.payload_id or ""
         active = session.state in {ConversationState.RECOVERY_CHANGE,
+                                   ConversationState.RESCUE_WAITING_DETAILS,
                                    ConversationState.RECOVERY_TRIP_CHOICE,
                                    ConversationState.RECOVERY_LOCATION,
                                    ConversationState.RECOVERY_CHOICE,
@@ -170,6 +216,9 @@ class TripRescueService:
             session.pending_recovery_id = None
             session.pending_recovery_option_id = None
             session.pending_recovery_trip_ids = []
+            session.rescue_history = []
+            session.rescue_fields = {}
+            session.rescue_unknown_streak = 0
             return False
 
         if lower in {"cancel", "menu", "stop"} or payload == "rescue_cancel":
@@ -178,6 +227,9 @@ class TripRescueService:
             session.pending_recovery_option_id = None
             session.pending_recovery_change = None
             session.pending_recovery_trip_ids = []
+            session.rescue_history = []
+            session.rescue_fields = {}
+            session.rescue_unknown_streak = 0
             await redis_store.save_session(session)
             await self._send(session, "Trip Rescue cancelled. Your saved itinerary was not changed.")
             return True
@@ -191,6 +243,11 @@ class TripRescueService:
             session.pending_recovery_change = None
             session.pending_recovery_id = None
             session.pending_recovery_option_id = None
+            session.rescue_history = []
+            session.rescue_history_summary = ""
+            session.rescue_fields = {}
+            session.rescue_unknown_streak = 0
+            session.rescue_last_bot_reply = None
             session.state = ConversationState.RECOVERY_TRIP_CHOICE
             await redis_store.save_session(session)
             lines = ["*Which saved trip needs help?* Select one to confirm:"]
@@ -265,9 +322,55 @@ class TripRescueService:
         if trigger:
             session.state = ConversationState.RECOVERY_CHANGE
             session.pending_recovery_change = None
+            session.rescue_history = []
+            session.rescue_history_summary = ""
+            session.rescue_fields = {}
+            session.rescue_unknown_streak = 0
+            session.rescue_last_bot_reply = None
             await redis_store.save_session(session)
             await self._send(session, f"What changed on your trip to *{trip.destination}*? Include the affected bus, train, flight, hotel, or place; tell me if you have already arrived and when.")
             return True
+
+        if session.state in {ConversationState.RECOVERY_CHANGE,
+                             ConversationState.RESCUE_WAITING_DETAILS} and not _already_arrived_late(text):
+            version = await firestore_store.get_latest_itinerary(session.wa_id, trip.trip_id)
+            if not version:
+                await self._send(session, "The saved itinerary is unavailable. Please try again later.")
+                return True
+            category = dict(RESCUE_CATEGORIES).get(payload)
+            message = category or text
+            try:
+                request = TripRequest.model_validate(trip.trip_request_data)
+                fields = await planner_gateway.extract_recovery(
+                    request, version.itinerary_data, session.rescue_history,
+                    session.rescue_history_summary, session.rescue_fields, message)
+                if not isinstance(fields, dict) or fields.get("disruption_type") not in {
+                    "missed", "delayed", "cancelled", "closed", "preference_change", "unknown"}:
+                    raise ValueError("Invalid extraction")
+            except (PlannerGatewayError, ValueError):
+                _remember(session, "user", message)
+                session.state = ConversationState.RESCUE_WAITING_DETAILS
+                await self._category_buttons(session)
+                return True
+            _remember(session, "user", message)
+            session.rescue_fields = fields
+            session.rescue_unknown_streak = (session.rescue_unknown_streak + 1
+                                              if fields["disruption_type"] == "unknown" else 0)
+            if session.rescue_unknown_streak >= 2:
+                session.state = ConversationState.RESCUE_WAITING_DETAILS
+                await self._category_buttons(session)
+                return True
+            if not fields.get("ready_to_replan") or fields["disruption_type"] == "unknown":
+                session.state = ConversationState.RESCUE_WAITING_DETAILS
+                await redis_store.save_session(session)
+                question = fields.get("next_question") or (
+                    "Which bus, train, hotel, or place was affected?" if fields["disruption_type"] == "unknown"
+                    else "Where are you now?")
+                await self._send(session, str(question)[:180])
+                return True
+            session.state = ConversationState.RECOVERY_CHANGE
+            session.pending_recovery_change = _canonical_change(fields)
+            await redis_store.save_session(session)
 
         if session.state == ConversationState.RECOVERY_CHANGE and _already_arrived_late(text):
             session.pending_recovery_change = text
@@ -305,6 +408,10 @@ class TripRescueService:
                         await redis_store.save_session(session)
                         return True
                 extra = {"contextual": True} if settings.trip_rescue_contextual_enabled else {}
+                if session.rescue_fields:
+                    extra.update(rescue_history=session.rescue_history,
+                                 rescue_history_summary=session.rescue_history_summary,
+                                 extracted_fields=session.rescue_fields)
                 result = await planner_gateway.propose_recovery(request, version.itinerary_data,
                                                                 change, trip.commitments, trip.trip_id,
                                                                 session.correlation_id, location, **extra)
@@ -370,7 +477,12 @@ class TripRescueService:
                 lines.append(f"{i}. *{option['title'][:60]}* — {price}. {option.get('reason', '')[:70]}.{sights[:110]} {warnings}")
             lines.append("Choose an option to review. Availability and prices may change.")
             buttons = [(f"rescue_pick_{i}", f"Option {i+1}") for i in range(min(3, len(options)))]
-            await self._send(session, "\n".join(lines), buttons)
+            wording = None
+            if session.rescue_fields:
+                wording = await planner_gateway.word_recovery_options(
+                    request, version.itinerary_data, session.rescue_history,
+                    session.rescue_history_summary, session.rescue_fields, options[:3])
+            await self._send(session, wording or "\n".join(lines), buttons)
             return True
 
         run = (await firestore_store.get_recovery_run(session.wa_id, trip.trip_id, session.pending_recovery_id)

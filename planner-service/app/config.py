@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     # ── Gemini / LLM ──────────────────────────────────────────────────────
     bedrock_api_key: str = ""          # Required for POST /plan
+    bedrock_converse_model_id: str = ""  # A Converse-capable model, separate from Gemma 4
+    bedrock_region: str = ""             # Region hosting the Converse model
     google_maps_api_key: str = ""     # Nearby Trip Rescue Places, Geocoding and Routes
     llm_timeout: float = 60.0         # seconds — LLM calls take longer
 

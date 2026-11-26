@@ -38,6 +38,9 @@ class RecoveryRequest(BaseModel):
     event_id: str | None = None
     current_location: "RecoveryLocation | None" = None
     contextual: bool = False
+    rescue_history: list[dict[str, str]] = Field(default_factory=list, max_length=10)
+    rescue_history_summary: str = Field(default="", max_length=500)
+    extracted_fields: dict[str, Any] = Field(default_factory=dict)
 
 
 class RecoveryLocation(BaseModel):

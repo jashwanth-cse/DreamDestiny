@@ -105,14 +105,18 @@ class PlannerGatewayClient:
     async def propose_recovery(self, trip_request: TripRequest, itinerary: dict,
                                change: str, commitments: list[dict], trip_id: str,
                                correlation_id: str, current_location: dict | None = None,
-                               contextual: bool = False) -> dict:
+                               contextual: bool = False, rescue_history: list[dict] | None = None,
+                               rescue_history_summary: str = "", extracted_fields: dict | None = None) -> dict:
         client = await self.get_client()
         try:
             response = await client.post(
                 "/v1/recovery",
                 json={"trip": trip_request.model_dump(mode="json"), "itinerary": itinerary,
                       "change": change, "commitments": commitments, "trip_id": trip_id,
-                      "current_location": current_location, "contextual": contextual},
+                      "current_location": current_location, "contextual": contextual,
+                      "rescue_history": (rescue_history or [])[-10:],
+                      "rescue_history_summary": rescue_history_summary,
+                      "extracted_fields": extracted_fields or {}},
                 headers={"X-Correlation-ID": correlation_id},
                 timeout=httpx.Timeout(95.0, connect=10.0) if contextual else self.timeout,
             )
@@ -120,5 +124,35 @@ class PlannerGatewayClient:
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise PlannerGatewayError("Trip Rescue is temporarily unavailable") from exc
+
+    async def extract_recovery(self, trip_request: TripRequest, itinerary: dict,
+                               history: list[dict], history_summary: str,
+                               extracted_fields: dict, message: str) -> dict:
+        client = await self.get_client()
+        try:
+            response = await client.post("/v1/recovery/extract", json={
+                "trip": trip_request.model_dump(mode="json"), "itinerary": itinerary,
+                "history": history[-10:], "history_summary": history_summary,
+                "extracted_fields": extracted_fields, "message": message},
+                timeout=httpx.Timeout(60.0, connect=10.0))
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise PlannerGatewayError("Trip Rescue interpretation is unavailable") from exc
+
+    async def word_recovery_options(self, trip_request: TripRequest, itinerary: dict,
+                                    history: list[dict], history_summary: str,
+                                    extracted_fields: dict, options: list[dict]) -> str | None:
+        client = await self.get_client()
+        try:
+            response = await client.post("/v1/recovery/word-options", json={
+                "trip": trip_request.model_dump(mode="json"), "itinerary": itinerary,
+                "history": history[-10:], "history_summary": history_summary,
+                "extracted_fields": extracted_fields, "options": options[:3]},
+                timeout=httpx.Timeout(60.0, connect=10.0))
+            response.raise_for_status()
+            return response.json().get("reply")
+        except (httpx.HTTPError, ValueError):
+            return None
 
 planner_gateway = PlannerGatewayClient()

@@ -154,6 +154,11 @@ def test_contextual_rescue_confirms_trip_then_auto_revises_only_that_trip(monkey
                              "source_id": "h1", "price": 1900, "reason": "Hotel search result",
                              "evidence": {"valid_until": expiry}}], "expires_at": expiry}
         monkeypatch.setattr(planner_gateway, "propose_recovery", contextual_plan)
+        async def extract(*args):
+            return {"disruption_type": "preference_change", "affected_item": "hotel",
+                "cause": "dirty room", "already_arrived": True, "missing_info": [],
+                "next_question": None, "ready_to_replan": True}
+        monkeypatch.setattr(planner_gateway, "extract_recovery", extract)
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             assert (await client.post("/webhook", json=_webhook("c1", "Trip Rescue"))).status_code == 200
@@ -192,7 +197,7 @@ def test_webhook_recovery_choice_approval_and_duplicate_delivery(monkeypatch):
         await redis_store.save_session(UserSession(wa_id=trip.wa_id, current_trip_id=trip.trip_id,
                                                   state="COMPLETED"))
         calls = []
-        async def fake_recovery(*args):
+        async def fake_recovery(*args, **kwargs):
             calls.append(args)
             expiry = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
             return {"status": "ready", "change_kind": "delay", "options": [{
@@ -200,6 +205,14 @@ def test_webhook_recovery_choice_approval_and_duplicate_delivery(monkeypatch):
                 "reason": "Outbound bus option", "warnings": [],
                 "evidence": {"valid_until": expiry}}], "expires_at": expiry}
         monkeypatch.setattr(planner_gateway, "propose_recovery", fake_recovery)
+        async def extract(*args):
+            return {"disruption_type": "delayed", "affected_item": "train",
+                "cause": None, "already_arrived": False, "missing_info": [],
+                "next_question": None, "ready_to_replan": True}
+        async def word(*args):
+            return None
+        monkeypatch.setattr(planner_gateway, "extract_recovery", extract)
+        monkeypatch.setattr(planner_gateway, "word_recovery_options", word)
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             for ident, body, button in [
@@ -258,10 +271,122 @@ def test_recovery_apply_rejects_stale_version_and_other_user():
     asyncio.run(run())
 
 
+def test_missed_return_bus_uses_history_and_does_not_repeat_question(monkeypatch):
+    async def run():
+        monkeypatch.setattr(settings, "app_env", "test")
+        monkeypatch.setattr(settings, "trip_rescue_enabled", True)
+        monkeypatch.setattr(settings, "trip_rescue_contextual_enabled", False)
+        redis_store._client = None
+        redis_store._memory_cache.clear()
+        firestore_store._db = None
+        firestore_store._trips.clear()
+        firestore_store._itineraries.clear()
+        whatsapp_client._sent_messages_log.clear()
+        trip = TripRecord(wa_id="919900000001", conversation_id="conv_missed", origin="Chennai",
+            destination="Hyderabad", start_date="2026-12-01", end_date="2026-12-03", travelers=1,
+            trip_request_data={"origin": "Chennai", "destination": "Hyderabad",
+                "start_date": "2026-12-01", "end_date": "2026-12-03"})
+        await firestore_store.save_trip(trip)
+        await firestore_store.save_itinerary_version(trip.wa_id, trip.trip_id,
+            ItineraryVersionRecord(itinerary_data={"return_transport": {"mode": "bus",
+                "leg": "Hyderabad to Chennai"}}))
+        await redis_store.save_session(UserSession(wa_id=trip.wa_id,
+            current_trip_id=trip.trip_id, state="COMPLETED"))
+        seen = []
+        async def extract(_trip, _itinerary, history, _summary, _fields, message):
+            seen.append((list(history), message))
+            return {"disruption_type": "missed", "affected_item": "return_bus",
+                "cause": "traffic" if "traffic" in message else None,
+                "already_arrived": False, "missing_info": [] if "traffic" in message else ["current_location"],
+                "next_question": None if "traffic" in message else "Where are you now?",
+                "ready_to_replan": "traffic" in message}
+        async def propose(_trip, _itinerary, change, *_args, **_kwargs):
+            assert "missed return bus traffic" in change
+            return {"status": "ready", "change_kind": "cancellation", "options": [
+                {"id": "return:bus:1", "title": "Next bus", "price": 1000,
+                 "reason": "Return bus option", "warnings": []},
+                {"id": "return:train:2", "title": "Evening train", "price": 800,
+                 "reason": "Return train option", "warnings": []}]}
+        async def word(*_args):
+            return "1. Next bus ₹1,000. 2. Evening train ₹800. Check the missed ticket's change policy. Which option should I review?"
+        monkeypatch.setattr(planner_gateway, "extract_recovery", extract)
+        monkeypatch.setattr(planner_gateway, "propose_recovery", propose)
+        monkeypatch.setattr(planner_gateway, "word_recovery_options", word)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            for ident, text in (("mr1", "Trip Rescue"), ("mr2", "i left the return bus"),
+                                ("mr3", "i left my return bus due to traffic")):
+                assert (await client.post("/webhook", json=_webhook(ident, text))).status_code == 200
+        messages = list(whatsapp_client._sent_messages_log)
+        assert "Where are you now?" in str(messages[1])
+        assert "Next bus" in str(messages[2])
+        assert str(messages[1]) != str(messages[2])
+        assert "i left the return bus" in str(seen[1][0])
+        session = await redis_store.get_session(trip.wa_id)
+        assert session.rescue_fields["cause"] == "traffic"
+        assert session.state == "RECOVERY_CHOICE"
+    asyncio.run(run())
+
+
+def test_two_unknown_rescue_messages_show_four_choice_list(monkeypatch):
+    async def run():
+        monkeypatch.setattr(settings, "app_env", "test")
+        monkeypatch.setattr(settings, "trip_rescue_enabled", True)
+        monkeypatch.setattr(settings, "trip_rescue_contextual_enabled", False)
+        redis_store._client = None
+        redis_store._memory_cache.clear()
+        firestore_store._db = None
+        firestore_store._trips.clear()
+        firestore_store._itineraries.clear()
+        whatsapp_client._sent_messages_log.clear()
+        trip = TripRecord(wa_id="919900000001", conversation_id="conv_unknown", origin="Chennai",
+            destination="Hyderabad", start_date="2026-12-01", end_date="2026-12-03", travelers=1,
+            trip_request_data={"origin": "Chennai", "destination": "Hyderabad",
+                "start_date": "2026-12-01", "end_date": "2026-12-03"})
+        await firestore_store.save_trip(trip)
+        await firestore_store.save_itinerary_version(trip.wa_id, trip.trip_id,
+            ItineraryVersionRecord(itinerary_data={"days": []}))
+        await redis_store.save_session(UserSession(wa_id=trip.wa_id,
+            current_trip_id=trip.trip_id, state="COMPLETED"))
+        async def unknown(*_args):
+            return {"disruption_type": "unknown", "affected_item": "unknown",
+                "cause": None, "already_arrived": None, "missing_info": ["change"],
+                "next_question": "Which part of the trip changed?", "ready_to_replan": False}
+        monkeypatch.setattr(planner_gateway, "extract_recovery", unknown)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            for ident, text in (("gu1", "Trip Rescue"), ("gu2", "gibberish"),
+                                ("gu3", "gibberish")):
+                assert (await client.post("/webhook", json=_webhook(ident, text))).status_code == 200
+        last = whatsapp_client._sent_messages_log[-1]
+        assert last["interactive"]["type"] == "list"
+        titles = [row["title"] for row in last["interactive"]["action"]["sections"][0]["rows"]]
+        assert titles == ["Missed transport", "Delay", "Cancellation", "Change plan"]
+        session = await redis_store.get_session(trip.wa_id)
+        assert session.rescue_unknown_streak == 2
+    asyncio.run(run())
+
+
+def test_rescue_reply_loop_guard_switches_to_list(monkeypatch):
+    from app.services.trip_rescue import TripRescueService
+
+    async def run():
+        monkeypatch.setattr(settings, "app_env", "test")
+        redis_store._client = None
+        redis_store._memory_cache.clear()
+        whatsapp_client._sent_messages_log.clear()
+        session = UserSession(wa_id="919900000001", state="RESCUE_WAITING_DETAILS")
+        service = TripRescueService()
+        await service._send(session, "Where are you now?")
+        await service._send(session, "Where are you now?")
+        assert whatsapp_client._sent_messages_log[-1]["interactive"]["type"] == "list"
+        assert session.rescue_last_bot_reply != "Where are you now?"
+    asyncio.run(run())
+
+
 def test_price_change_during_approval_keeps_original_trip(monkeypatch):
     async def run():
         monkeypatch.setattr(settings, "app_env", "test")
         monkeypatch.setattr(settings, "trip_rescue_enabled", True)
+        monkeypatch.setattr(settings, "trip_rescue_contextual_enabled", False)
         redis_store._client = None
         redis_store._memory_cache.clear()
         firestore_store._db = None
@@ -278,7 +403,7 @@ def test_price_change_during_approval_keeps_original_trip(monkeypatch):
         await redis_store.save_session(UserSession(wa_id=trip.wa_id, current_trip_id=trip.trip_id,
                                                   state="COMPLETED"))
         counter = 0
-        async def changing_price(*args):
+        async def changing_price(*args, **kwargs):
             nonlocal counter
             counter += 1
             return {"status": "ready", "change_kind": "delay", "options": [{
@@ -286,6 +411,14 @@ def test_price_change_during_approval_keeps_original_trip(monkeypatch):
                 "reason": "Outbound bus option", "warnings": []}],
                 "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()}
         monkeypatch.setattr(planner_gateway, "propose_recovery", changing_price)
+        async def extract(*_args):
+            return {"disruption_type": "delayed", "affected_item": "train",
+                "cause": None, "already_arrived": False, "missing_info": [],
+                "next_question": None, "ready_to_replan": True}
+        async def word(*_args):
+            return None
+        monkeypatch.setattr(planner_gateway, "extract_recovery", extract)
+        monkeypatch.setattr(planner_gateway, "word_recovery_options", word)
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             for ident, body, button in [("p1", "Trip Rescue", None),
@@ -294,6 +427,7 @@ def test_price_change_during_approval_keeps_original_trip(monkeypatch):
                                         ("p4", "Apply update", "rescue_approve")]:
                 assert (await client.post("/webhook", json=_webhook(ident, body, button))).status_code == 200
         assert (await firestore_store.get_trip(trip.wa_id, trip.trip_id)).latest_version == 1
+        assert counter == 2
     asyncio.run(run())
 
 

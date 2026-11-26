@@ -32,6 +32,7 @@ class BedrockLLMClient:
         user_data: dict[str, Any],
         json_schema: dict[str, Any],
         max_tokens: int = 8192,
+        temperature: float = 0.2,
     ) -> dict[str, Any]:
         """
         Generate a JSON object from the model via Bedrock.
@@ -56,7 +57,7 @@ class BedrockLLMClient:
             response = await self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                temperature=0.2,
+                temperature=temperature,
                 max_tokens=max_tokens
             )
         except Exception as exc:
