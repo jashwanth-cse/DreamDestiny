@@ -25,6 +25,7 @@ from app.orchestration.trip_orchestrator import TripOrchestrator
 from app.schemas.itinerary import Itinerary
 from app.schemas.request import TripRequest
 from app.services.llm.llm_client import BedrockLLMClient
+from app.services.hotel_recommendation import HotelRecommendationService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -45,6 +46,7 @@ _orchestrator = TripOrchestrator(
 )
 
 _validator = ItineraryValidator()
+_hotel_recommendation = HotelRecommendationService()
 _agent: PlanningAgent | None = None
 
 
@@ -124,7 +126,14 @@ async def plan(trip: TripRequest) -> PlanResponse:
             detail="An unexpected error occurred during planning.",
         )
 
-    # ── Step 3: Validate choices and calculate costs ──────────────────────
+    # ── Step 3: Ground the hotel and arrival transfer in provider routes ──
+    try:
+        itinerary = await _hotel_recommendation.apply(itinerary, context)
+    except Exception as exc:
+        logger.exception("Hotel recommendation failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Hotel recommendation is temporarily unavailable") from exc
+
+    # ── Step 4: Validate choices and calculate costs ──────────────────────
     try:
         itinerary = _validator.validate_and_calculate_costs(itinerary, context)
     except Exception as exc:

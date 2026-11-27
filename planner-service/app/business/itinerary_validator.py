@@ -53,26 +53,19 @@ class ItineraryValidator:
                     hotel_cost = float(matched_hotel.price.total)
                 elif matched_hotel.price.per_night is not None and matched_hotel.price.per_night > 0:
                     hotel_cost = float(matched_hotel.price.per_night * nights)
-                elif itinerary.hotel.price_total is not None and itinerary.hotel.price_total > 0:
-                    hotel_cost = float(itinerary.hotel.price_total)
-                elif itinerary.hotel.price_per_night is not None and itinerary.hotel.price_per_night > 0:
-                    hotel_cost = float(itinerary.hotel.price_per_night * nights)
-                
-                # Update hotel fields if missing
-                if not itinerary.hotel.price_per_night and matched_hotel.price.per_night:
-                    itinerary.hotel.price_per_night = matched_hotel.price.per_night
-                if not itinerary.hotel.price_total:
-                    itinerary.hotel.price_total = hotel_cost
+                # Model prices are never accepted as a fallback for provider prices.
+                itinerary.hotel.hotel_id = matched_hotel.id
+                itinerary.hotel.hotel_name = matched_hotel.name
+                itinerary.hotel.price_per_night = matched_hotel.price.per_night
+                itinerary.hotel.price_total = hotel_cost or None
             else:
                 logger.warning(
                     "Hotel '%s' (id=%s) not found in TripContext.",
                     itinerary.hotel.hotel_name,
                     itinerary.hotel.hotel_id,
                 )
-                if itinerary.hotel.price_total:
-                    hotel_cost = float(itinerary.hotel.price_total)
-                elif itinerary.hotel.price_per_night:
-                    hotel_cost = float(itinerary.hotel.price_per_night * nights)
+                itinerary.hotel = None
+                itinerary.arrival_to_hotel = None
 
         # ── 2. Validate Transport & compute transport cost ────────────────────
         outbound_fare, outbound_currency = self._validate_transport(

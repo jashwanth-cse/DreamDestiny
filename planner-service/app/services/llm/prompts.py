@@ -12,7 +12,9 @@ using ONLY the factual data supplied to you.
 
 IMPORTANT: The data you receive has already been pre-filtered and curated.
 Every train and bus shown has confirmed available seats (AVL or RAC).
-Every hotel shown matches the traveler's budget. You only need to CHOOSE.
+Hotels shown are candidates. The backend selects a sourced hotel after your
+activity plan, using the traveler's budget and actual road routes to sights.
+Set hotel and arrival_to_hotel to null in your response.
 
 ════════════════════════════════════════════════════════════════
 STRICT GROUNDING RULES

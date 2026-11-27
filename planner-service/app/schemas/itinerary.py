@@ -193,6 +193,21 @@ class HotelDecision(BaseModel):
         default=None,
         description="Total price for all nights in INR.",
     )
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
+    avg_attraction_drive_minutes: Optional[int] = None
+    furthest_attraction_drive_minutes: Optional[int] = None
+
+
+class ArrivalToHotel(BaseModel):
+    """Ground transfer from a verified arrival stop to the selected hotel."""
+    from_name: str
+    to_hotel: str
+    mode: str = "road"
+    travel_minutes: Optional[int] = None
+    distance_km: Optional[float] = None
+    maps_url: Optional[str] = None
+    instruction: str
 
 
 # ── Day plan ──────────────────────────────────────────────────────────────────
@@ -254,6 +269,10 @@ class Itinerary(BaseModel):
     hotel: Optional[HotelDecision] = Field(
         default=None,
         description="Chosen hotel. Null if no hotels were available in context.",
+    )
+    arrival_to_hotel: Optional[ArrivalToHotel] = Field(
+        default=None,
+        description="Road transfer after reaching the destination by train, bus or flight; filled by Routes API.",
     )
     outbound_transport: Optional[TransportDecision] = Field(
         default=None,

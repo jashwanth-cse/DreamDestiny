@@ -265,15 +265,27 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
 
         lines.append("🏨 *HOTEL & STAY:*")
         lines.append(f"• *{h_name}*")
-        if h_price:
+        if h_price is not None:
             price_str = f"~₹{int(h_price):,}/night"
-            if h_total:
+            if h_total is not None:
                 price_str += f" (Total: ₹{int(h_total):,})"
             lines.append(f"  💰 Rate: {price_str}")
+        else:
+            lines.append("  💰 Rate: not verified for your dates")
+        if hotel.get("rating") is not None and hotel.get("review_count"):
+            lines.append(f"  ⭐ {hotel['rating']:.1f}/5 ({hotel['review_count']} reviews)")
         lines.append(f"  📍 Map: {hotel_map_link}")
         if h_reason:
             lines.append(f"  _{h_reason}_")
         lines.append("")
+
+        transfer = itinerary.get("arrival_to_hotel")
+        if isinstance(transfer, dict) and transfer.get("instruction"):
+            lines.append("🚕 *AFTER ARRIVING IN THE CITY:*")
+            lines.append(f"• {transfer['instruction']}")
+            if transfer.get("maps_url"):
+                lines.append(f"  📍 Directions: {transfer['maps_url']}")
+            lines.append("")
 
     # 5. Day-by-Day Schedule with Clickable Google Maps
     days_list = itinerary.get("days") or itinerary.get("itinerary") or []

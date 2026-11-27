@@ -175,13 +175,15 @@ Trip Rescue's free-text detail extraction uses Bedrock Converse when `BEDROCK_CO
 
 See [Trip Rescue implementation and local WhatsApp sandbox testing](docs/TRIP_RESCUE.md) for setup, API behavior, current limits, and test commands.
 
+See [hotel recommendation and arrival transfer](docs/HOTEL_RECOMMENDATION.md) for the itinerary ranking algorithm, provider requirements, and manual test steps.
+
 | Capability | Integration Provider | Description |
 |:---|:---:|:---|
 | **🧠 Generative Itinerary Synthesis** | ![Bedrock](https://img.shields.io/badge/Amazon-Bedrock-FF9900?style=flat-square&logo=amazonaws&logoColor=white) | Foundation models turn unstructured conversation into structured, timed itineraries. |
 | **🚆 Real-time Rail Discovery** | ![ixigo](https://img.shields.io/badge/ixigo-Rail-E42529?style=flat-square) | Schedules, train numbers, running status, and berth class options across Indian Railways. |
 | **🚌 Intercity Coach Discovery** | ![redBus](https://img.shields.io/badge/redBus-Road-D84E55?style=flat-square) | Intercity bus routes, AC Sleeper/Seater availability, pickup hubs, and operator ratings. |
 | **✈️ Flight Fare Intelligence** | ![Google](https://img.shields.io/badge/Google-Flights-4285F4?style=flat-square&logo=google&logoColor=white) | Non-stop & connecting flight timetables and price comparisons for domestic routes. |
-| **🏨 Verified Stay Suggestions** | ![Google](https://img.shields.io/badge/Google-Hotels-34A853?style=flat-square&logo=google&logoColor=white) | Curated accommodations filtered by proximity to planned attractions and user budget. |
+| **🏨 Route-Ranked Stay Suggestions** | ![Google](https://img.shields.io/badge/Google-Hotels-34A853?style=flat-square&logo=google&logoColor=white) | SerpApi Google Hotels prices and reviews, ranked against the planned sights with Google Routes; the itinerary includes a station or bus-stop transfer when the stop is known. |
 | **🗺️ Geospatial Route Context** | ![Google](https://img.shields.io/badge/Google-Maps-EA4335?style=flat-square&logo=googlemaps&logoColor=white) | Distance calculations, transit hours, and realistic walking buffers between landmarks. |
 | **🌐 Static Marketing Showcase** | ![Next.js](https://img.shields.io/badge/Next.js-16_Static_Export-000000?style=flat-square&logo=next.js&logoColor=white) | High-performance landing page adhering to the TripForge soft-minimal palette. |
 
