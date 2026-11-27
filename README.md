@@ -37,11 +37,48 @@
 > ### 💡 **"No app installation. No separate signup. Just WhatsApp."**
 > Unlike conventional booking engines and multi-tab browser planners, **Dream Destiny** eliminates interface fatigue. You message a friend; Dream Destiny returns an end-to-end, multi-modal itinerary backed by live Indian travel intelligence.
 
+<p align="center">
+  <a href="https://wa.me/919943648930?text=New%20trip"><strong>💬 Try it on WhatsApp</strong></a>
+  · Message <strong>+91 99436 48930</strong> and send <strong>New trip</strong>.
+</p>
+
+<p align="center">
+  <strong>Dream Destiny plans trips and shows provider prices and availability.</strong>
+  It does not book, pay for, or cancel tickets or hotel rooms.
+</p>
+
+<p align="center">
+  <a href="#for-travellers"><strong>For travellers</strong></a> ·
+  <a href="#for-developers"><strong>For developers</strong></a> ·
+  <a href="#trip-rescue-in-action"><strong>See Trip Rescue</strong></a>
+</p>
+
 ---
 
 </div>
 
 <br />
+
+## For travellers
+
+Open the WhatsApp chat and send `New trip`. Tell the bot where you’re starting, where you’re going, and your dates. It asks for any other details it needs.
+
+- **Choose how to travel.** Compare provider results for trains, buses, and flights. For rail, the bot can flag RAC or waitlisted seats and let you change transport.
+- **See where to stay and how to get there.** Get a priced stay suggestion ranked by budget, reviews, and drive times to planned sights. When the arrival stop and hotel route can be resolved, the itinerary includes directions from the station, bus stop, or airport.
+- **Get a realistic sightseeing schedule.** The planner accounts for arrival time, travel between stops, and published regular opening hours where available. Check hours and quoted prices before travelling.
+- **Adapt a saved trip.** Send `Trip Rescue` and describe what changed, such as rain, a missed train, or a closed attraction. The bot uses the saved trip to suggest alternatives. If you’ve arrived late, it may ask for a location pin or landmark to look for nearby options.
+
+## For developers
+
+The fastest way to explore the bot locally is the **mock-data webhook test**. It uses Meta-shaped messages, a test session, and mocked provider and model responses. It runs without Docker or external API keys.
+
+```bash
+cd whatsapp-bot-service
+python -m pip install -r requirements.txt
+python -m pytest tests/test_trip_rescue_webhook.py -q
+```
+
+For local WhatsApp delivery through a Meta test number, follow the [Trip Rescue sandbox guide](docs/TRIP_RESCUE.md). For a full self-hosted deployment with live providers, use the [Quick Start](#-quick-start). The [live provider replay](docs/E2E_TRIP_FLOW.md) exercises itinerary generation and rescue against real service APIs and Bedrock.
 
 ## 🌟 Why Dream Destiny?
 
@@ -161,6 +198,31 @@ Traditional travel planning is broken across 5+ disparate tabs: checking train a
 
 ---
 
+## Trip Rescue in action
+
+These WhatsApp captures show two ways a saved Kochi trip can change. The rain response labels unverified times and prices, and the cancellation response offers train options to review. Prices shown are historical quotes.
+
+<table>
+  <thead>
+    <tr>
+      <th align="center" width="50%">🌧️ Rain in Fort Kochi</th>
+      <th align="center" width="50%">✈️ Cancelled outbound flight</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center" valign="top">
+        <a href="docs/images/trip-rescue-rain.png"><img src="docs/images/trip-rescue-rain.png" width="280" alt="WhatsApp Trip Rescue suggests indoor attractions after the traveller reports rain in Fort Kochi." /></a>
+      </td>
+      <td align="center" valign="top">
+        <a href="docs/images/trip-rescue-cancellation.png"><img src="docs/images/trip-rescue-cancellation.png" width="280" alt="WhatsApp Trip Rescue offers train options to review after the traveller reports a cancelled flight to Kochi." /></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
 ## ✨ Core Features
 
 ### Trip Rescue (opt-in)
@@ -194,6 +256,26 @@ See [hotel recommendation and arrival transfer](docs/HOTEL_RECOMMENDATION.md) fo
 ---
 
 ## 🏗️ System Architecture
+
+### Current planning and Trip Rescue flow
+
+```mermaid
+flowchart LR
+    WA["WhatsApp chat"] <--> BOT["Webhook and conversation state"]
+    BOT <--> STORE["Redis session and saved trip storage"]
+    BOT --> PLAN["New trip planner"]
+    BOT --> RESCUE["Trip Rescue"]
+    PLAN --> MODEL["Amazon Bedrock"]
+    RESCUE --> MODEL
+    PLAN --> FEEDS["Transport, hotels, places and routes"]
+    RESCUE --> AGENTS["Mobility, experience and nearby agents"]
+    AGENTS --> FEEDS
+    PLAN --> CHECK["Schedule, hotel ranking and arrival transfer"]
+    CHECK --> BOT
+    RESCUE --> BOT
+```
+
+The planner currently uses Gemma 4 on Bedrock. Rescue can use a configured Bedrock Converse model for disruption extraction and fall back to Bedrock chat. The original infrastructure overview below retains its earlier model labels.
 
 Dream Destiny is architected as an asynchronous, containerized microservices ecosystem designed for high concurrency and sub-second WhatsApp response latencies:
 
