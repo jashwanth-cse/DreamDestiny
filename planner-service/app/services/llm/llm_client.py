@@ -26,6 +26,9 @@ class BedrockLLMClient:
         self._model = "google.gemma-4-31b"
         logger.info(f"BedrockLLMClient initialised with Model: {self._model}")
 
+    def on_raw_text(self, raw_text: str) -> None:
+        """Optional tracing hook; production leaves model text unlogged."""
+
     async def generate_json(
         self,
         system_prompt: str,
@@ -74,6 +77,8 @@ class BedrockLLMClient:
 
         if not raw_text or not raw_text.strip():
             raise LLMError("Bedrock returned an empty response body.")
+
+        self.on_raw_text(raw_text)
 
         import re
         raw_text = raw_text.strip()

@@ -80,6 +80,22 @@ def test_converse_retries_malformed_json_once(monkeypatch):
     asyncio.run(run())
 
 
+def test_explicit_train_word_corrects_wrong_model_transport_label(monkeypatch):
+    async def run():
+        monkeypatch.setattr(settings, "bedrock_api_key", "test-key")
+        monkeypatch.setattr(settings, "bedrock_converse_model_id", "test-model")
+        monkeypatch.setattr(settings, "bedrock_region", "test-region")
+        def handler(_request):
+            return httpx.Response(200, json={"output": {"message": {"content": [{
+                "text": json.dumps({"disruption_type": "delayed", "affected_item": "outbound_bus",
+                    "cause": None, "already_arrived": None, "missing_info": [],
+                    "next_question": None, "ready_to_replan": True})}]}}})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await ConverseRescueClient(client).extract(_request("my train got delayed 6 hours"))
+        assert result.affected_item == "train"
+    asyncio.run(run())
+
+
 def test_wording_rejects_reordered_options_that_would_mismatch_buttons(monkeypatch):
     async def run():
         monkeypatch.setattr(settings, "bedrock_api_key", "test-key")

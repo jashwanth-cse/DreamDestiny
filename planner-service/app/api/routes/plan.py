@@ -18,6 +18,7 @@ from app.agents.planning_agent import PlanningAgent
 from app.business.itinerary_validator import ItineraryValidator
 from app.clients.flight_client import FlightClient
 from app.clients.hotel_client import HotelClient
+from app.clients.interest_places import InterestPlacesClient
 from app.clients.route_client import RouteClient
 from app.clients.tourism_client import TourismClient
 from app.clients.transport_client import BusClient, TrainClient
@@ -27,6 +28,7 @@ from app.schemas.request import TripRequest
 from app.schemas.request import TransportPref
 from app.services.llm.llm_client import BedrockLLMClient
 from app.services.hotel_recommendation import HotelRecommendationService
+from app.services.schedule_verifier import ScheduleVerifier
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,6 +50,8 @@ _orchestrator = TripOrchestrator(
 
 _validator = ItineraryValidator()
 _hotel_recommendation = HotelRecommendationService()
+_schedule_verifier = ScheduleVerifier()
+_interest_places = InterestPlacesClient()
 _agent: PlanningAgent | None = None
 
 
@@ -119,6 +123,7 @@ async def plan(trip: TripRequest) -> PlanResponse:
     if not context.hotels:
         raise HTTPException(status_code=503,
             detail="Dated hotel prices are unavailable right now. Please retry this trip shortly.")
+    await _interest_places.add_requested_places(context)
 
     # ── Step 2: Run planning agent ────────────────────────────────────────
     try:
@@ -147,6 +152,12 @@ async def plan(trip: TripRequest) -> PlanResponse:
                 logger.warning("Planner violated explicit bus preference for %s leg", leg)
                 raise HTTPException(status_code=503,
                     detail="The planner could not verify a bus itinerary. Please retry or choose another mode.")
+
+    # Provider-backed selections can replace LLM hotel and transport choices;
+    # discard factual narrative that would otherwise become stale.
+    itinerary.planning_notes = None
+    itinerary = _validator.normalize_days(itinerary, context)
+    itinerary = await _schedule_verifier.apply(itinerary, context)
 
     # ── Step 3: Ground the hotel and arrival transfer in provider routes ──
     try:

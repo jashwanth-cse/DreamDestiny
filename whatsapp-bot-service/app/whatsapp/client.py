@@ -9,6 +9,7 @@ from typing import Dict, Any, List, Optional
 import httpx
 
 from app.config import settings
+from app.whatsapp.messages import split_whatsapp_text
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class WhatsAppClient:
             if len(body) > 4000:
                 logger.info("Message exceeds WhatsApp length limit. Chunking...")
                 success = True
-                chunks = [body[i:i+4000] for i in range(0, len(body), 4000)]
+                chunks = split_whatsapp_text(body)
                 for i, chunk in enumerate(chunks):
                     chunk_payload = {**payload, "text": {"body": chunk, "preview_url": False}}
                     if not await self._send_single_payload(chunk_payload, recipient):

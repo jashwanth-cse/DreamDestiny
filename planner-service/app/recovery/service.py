@@ -27,7 +27,7 @@ class RecoveryService:
         fields = request.extracted_fields
         disruption = fields.get("disruption_type")
         affected_item = fields.get("affected_item")
-        if affected_item == "place" and disruption == "delayed":
+        if affected_item == "place" and disruption in {"delayed", "missed"}:
             kind = "place_delay"
         elif disruption in {"missed", "cancelled"}:
             kind = "cancellation"
@@ -88,7 +88,20 @@ class RecoveryService:
 
         mobility, mobility_trace = mobility_result
         experience, experience_trace = experience_result
-        pool = (experience if kind == "closure" else mobility + experience)
+        rainy = bool(re.search(r"\b(rain|raining|pouring|storm|downpour)\b", request.change.casefold()))
+        if rainy:
+            indoor_types = {"museum", "art_gallery", "aquarium", "shopping_mall", "movie_theater", "library"}
+            indoor_names = {a.name.casefold() for a in context.attractions
+                            if indoor_types.intersection(a.types)}
+            booked_names = {c.title.casefold() for c in request.commitments
+                            if c.kind == "activity" and c.confirmed}
+            pool = [option for option in tools.experience_options()
+                    if option.title.casefold() in indoor_names and
+                    option.title.casefold() not in booked_names]
+            for option in pool:
+                option.reason = "Indoor alternative during rain; verify opening hours before visiting"
+        else:
+            pool = (experience if kind == "closure" else mobility + experience)
         valid: list[RecoveryOption] = []
         for option in pool:
             if not option.evidence or option.evidence.valid_until <= self.now():

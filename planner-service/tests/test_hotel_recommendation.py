@@ -206,3 +206,15 @@ def test_plan_rejects_model_train_when_buses_exist(monkeypatch):
         assert error.value.status_code == 503
         assert "bus itinerary" in error.value.detail
     asyncio.run(run())
+
+
+def test_return_date_sightseeing_is_removed_before_hotel_ranking():
+    context = _context()
+    itinerary = _itinerary()
+    itinerary.days = [DayPlan(day=1, date="2026-12-10", activities=[Activity(attraction_name="Museum")]),
+                      DayPlan(day=2, date="2026-12-11", activities=[Activity(attraction_name="Palace")]),
+                      DayPlan(day=3, date="2026-12-12", activities=[Activity(attraction_name="Fort")])]
+    normalized = ItineraryValidator().normalize_days(itinerary, context)
+    assert [day.date for day in normalized.days] == ["2026-12-10", "2026-12-11"]
+    assert normalized.summary.days == 2
+    assert "outside the stay dates" in normalized.planning_notes

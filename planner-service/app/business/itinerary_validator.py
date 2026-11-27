@@ -13,11 +13,13 @@ Design principles:
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Optional
 
 from app.schemas.context import TripContext, FlightContext, HotelContext
 from app.schemas.itinerary import (
     CostBreakdown,
+    DayPlan,
     Itinerary,
     HotelDecision,
     TransportDecision,
@@ -30,6 +32,23 @@ class ItineraryValidator:
     """
     Validates selected entities against TripContext and computes cost breakdowns.
     """
+
+    def normalize_days(self, itinerary: Itinerary, context: TripContext) -> Itinerary:
+        """Keep sightseeing on the booked stay dates, never on the return date."""
+        expected = [(context.trip.start_date + timedelta(days=i)).isoformat()
+                    for i in range((context.trip.end_date - context.trip.start_date).days)]
+        by_date = {day.date: day for day in itinerary.days if day.date in expected}
+        omitted = len(itinerary.days) - len(by_date)
+        itinerary.days = [by_date.get(day) or DayPlan(day=index, date=day,
+                           theme="Free time; plan details unavailable")
+                          for index, day in enumerate(expected, 1)]
+        for index, day in enumerate(itinerary.days, 1):
+            day.day = index
+        itinerary.summary.days = len(expected)
+        if omitted:
+            note = f"{omitted} model day(s) outside the stay dates were omitted."
+            itinerary.planning_notes = (itinerary.planning_notes or "") + " " + note
+        return itinerary
 
     def validate_and_calculate_costs(
         self,

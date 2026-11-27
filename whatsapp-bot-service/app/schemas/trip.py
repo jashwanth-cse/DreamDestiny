@@ -108,6 +108,7 @@ class TripDraft(BaseModel):
     transport_mode: Optional[TransportPref] = None
     berth_preference: Optional[BerthPreference] = None
     hotel_category: Optional[HotelPref] = None
+    pace: Optional[TravelPace] = None
     interests: List[str] = Field(default_factory=list)
 
     def is_complete_for_planning(self) -> bool:
@@ -142,6 +143,7 @@ class TripDraft(BaseModel):
                     berth_preference=self.berth_preference
                 ),
                 hotel=HotelPreferences(category=self.hotel_category or HotelPref.any),
-                activities=ActivityPreferences(interests=self.interests or []),
+                activities=ActivityPreferences(pace=self.pace or TravelPace.moderate,
+                                               interests=self.interests or []),
             ),
         )

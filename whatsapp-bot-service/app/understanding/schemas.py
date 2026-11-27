@@ -6,7 +6,7 @@ from typing import Optional, List
 from datetime import date
 from pydantic import BaseModel, Field
 
-from app.schemas.trip import BudgetLevel, TransportPref, HotelPref
+from app.schemas.trip import BudgetLevel, TransportPref, HotelPref, TravelPace
 
 
 class ExtractedTripSlots(BaseModel):
@@ -20,6 +20,7 @@ class ExtractedTripSlots(BaseModel):
     budget_level: Optional[BudgetLevel] = None
     transport_mode: Optional[TransportPref] = None
     hotel_category: Optional[HotelPref] = None
+    pace: Optional[TravelPace] = None
     interests: List[str] = Field(default_factory=list)
     
     # Meta / Intent flags
@@ -50,6 +51,7 @@ class ExtractedTripSlots(BaseModel):
             or self.budget_level
             or self.transport_mode
             or self.hotel_category
+            or self.pace
             or self.interests
             or self.reset_intent
             or self.cancel_intent

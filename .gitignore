@@ -65,6 +65,7 @@ certbot/www/*
 !certbot/www/.gitkeep
 
 # Test prompt dumps
+.e2e-trip-runs/
 raw_prompt_bundle.json
 ollama_*.json
 prompt_*.txt

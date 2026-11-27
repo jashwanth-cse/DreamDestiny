@@ -175,6 +175,10 @@ Trip Rescue's free-text detail extraction uses Bedrock Converse when `BEDROCK_CO
 
 See [Trip Rescue implementation and local WhatsApp sandbox testing](docs/TRIP_RESCUE.md) for setup, API behavior, current limits, and test commands.
 
+For a real-provider itinerary and rescue replay with full JSONL traces, see
+[the end-to-end trip flow test](docs/E2E_TRIP_FLOW.md). Run
+`python scripts/test_e2e_trip_flow.py` from the repository root.
+
 See [hotel recommendation and arrival transfer](docs/HOTEL_RECOMMENDATION.md) for the itinerary ranking algorithm, provider requirements, and manual test steps.
 
 | Capability | Integration Provider | Description |

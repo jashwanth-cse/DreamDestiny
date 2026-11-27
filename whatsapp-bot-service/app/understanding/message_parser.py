@@ -300,6 +300,17 @@ class MessageParser:
             elif re.search(r"\b(luxury|high budget|expensive|premium|5[- ]?star|high)\b", lower):
                 slots.budget_level = BudgetLevel.high
 
+        # Pace is optional but must survive natural WhatsApp input into TripRequest.
+        if re.search(r"\b(relaxed|slow|easy)[ -]?pace\b|\btake it (?:slow|easy)\b", lower):
+            from app.schemas.trip import TravelPace
+            slots.pace = TravelPace.relaxed
+        elif re.search(r"\b(intensive|packed|fast)[ -]?pace\b|\bpack (?:the|each) day\b", lower):
+            from app.schemas.trip import TravelPace
+            slots.pace = TravelPace.intensive
+        elif re.search(r"\bmoderate[ -]?pace\b", lower):
+            from app.schemas.trip import TravelPace
+            slots.pace = TravelPace.moderate
+
         # 10. Hotel Category Mapping
         if not slots.hotel_category:
             if re.search(r"\b(budget hotel|hostel|dorm|cheap hotel|budget)\b", lower):

@@ -1,4 +1,4 @@
-from app.whatsapp.messages import format_itinerary_message
+from app.whatsapp.messages import format_itinerary_message, split_whatsapp_text
 
 
 def test_hotel_price_balance_and_arrival_directions_are_visible():
@@ -31,3 +31,12 @@ def test_sightseeing_has_directions_from_hotel_then_previous_stop():
     assert "From Central Stay:" in text
     assert "From Fort Kochi:" in text
     assert text.count("https://www.google.com/maps/dir/") == 2
+
+
+def test_long_itinerary_splits_between_lines_not_inside_links():
+    url = "https://www.google.com/maps/dir/?api=1&destination=Fort+Kochi"
+    body = ("A scenic stop\n" * 285) + url + "\n" + ("Another stop\n" * 45)
+    chunks = split_whatsapp_text(body)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 4000 for chunk in chunks)
+    assert sum(url in chunk for chunk in chunks) == 1

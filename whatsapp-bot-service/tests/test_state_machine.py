@@ -3,7 +3,7 @@ from datetime import date
 from app.schemas.conversation import UserSession, ConversationState
 from app.understanding.schemas import ExtractedTripSlots
 from app.conversation.state_machine import StateMachine
-from app.schemas.trip import BudgetLevel, TransportPref, HotelPref
+from app.schemas.trip import BudgetLevel, TransportPref, HotelPref, TravelPace
 
 
 def test_state_machine_progressive_transitions():
@@ -76,6 +76,16 @@ def test_waitlisted_train_change_to_bus_persists_in_request():
         ExtractedTripSlots(transport_mode=TransportPref.bus))
     assert session.draft.to_trip_request().preferences.transport.mode.value == "bus"
     assert session.draft.berth_preference is None
+
+
+def test_traveler_pace_reaches_planner_request():
+    session = UserSession(wa_id="test")
+    StateMachine.apply_slots(session.draft, ExtractedTripSlots(pace=TravelPace.relaxed))
+    session.draft.origin = "Chennai"
+    session.draft.destination = "Coimbatore"
+    session.draft.start_date = date(2026, 12, 3)
+    session.draft.end_date = date(2026, 12, 4)
+    assert session.draft.to_trip_request().preferences.activities.pace == TravelPace.relaxed
 
 
 def test_state_machine_multi_slot_jump():

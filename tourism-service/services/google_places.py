@@ -32,7 +32,9 @@ FIELD_MASK = (
     "places.userRatingCount,"
     "places.googleMapsUri,"
     "places.photos,"
-    "places.types"
+    "places.types,"
+    "places.regularOpeningHours,"
+    "places.businessStatus"
 )
 RECOVERY_FIELD_MASK = FIELD_MASK.replace("places.photos,", "")
 
@@ -162,7 +164,7 @@ async def fetch_tourist_attractions(
     Results are cached (Redis / in-memory) to prevent expensive Google billing.
     Photo URLs are resolved concurrently to keep total latency low.
     """
-    cache_key = f"places:{city_name.strip().lower()}:{max_results}"
+    cache_key = f"places:{city_name.strip().lower()}:{max_results}:hours_v1"
     cached = None if fresh else await _cache_get(cache_key)
     if cached is not None:
         logger.info("Cache HIT for tourist attractions: %s", cache_key)
@@ -237,6 +239,9 @@ async def fetch_tourist_attractions(
             "google_maps_url": place.get("googleMapsUri"),
             "image_url": image_url,
             "types": place.get("types", []),
+            "place_id": place.get("id"),
+            "opening_hours": place.get("regularOpeningHours"),
+            "business_status": place.get("businessStatus"),
         }
 
         results.append(attraction)

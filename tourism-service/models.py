@@ -19,6 +19,9 @@ class Attraction(BaseModel):
     google_maps_url: Optional[str] = None
     image_url: Optional[str] = None
     types: list[str] = Field(default_factory=list)
+    place_id: Optional[str] = None
+    opening_hours: Optional[dict] = None
+    business_status: Optional[str] = None
 
 
 class TourismResponse(BaseModel):

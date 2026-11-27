@@ -123,9 +123,13 @@ class ConverseRescueClient:
                 logger.warning("Converse unavailable; using configured Bedrock chat model")
         # The existing Gemma 4 model supports Bedrock Chat Completions, not Converse.
         # It is a compatibility fallback for accounts whose API key cannot call runtime.
-        return await BedrockLLMClient().generate_json(
-            system_prompt=system, user_data=data,
-            json_schema={"type": "object"}, max_tokens=max_tokens, temperature=0.1)
+        llm = BedrockLLMClient()
+        try:
+            return await llm.generate_json(
+                system_prompt=system, user_data=data,
+                json_schema={"type": "object"}, max_tokens=max_tokens, temperature=0.1)
+        finally:
+            await llm._client.close()
 
     async def extract(self, request: RescueExtractionRequest) -> RescueExtraction:
         system = (
@@ -147,6 +151,16 @@ class ConverseRescueClient:
         for attempt in range(2):
             try:
                 result = RescueExtraction.model_validate(await self._generate(system, data, 300))
+                # Explicit transport words in the latest message outrank an inferred model label.
+                lower = request.message.casefold()
+                if re.search(r"\btrain\b", lower):
+                    result.affected_item = "train"
+                elif re.search(r"\bflight\b|\bplane\b", lower):
+                    result.affected_item = "flight"
+                elif re.search(r"\breturn bus\b|\bhomebound bus\b", lower):
+                    result.affected_item = "return_bus"
+                elif re.search(r"\bbus\b", lower):
+                    result.affected_item = "outbound_bus"
                 # Enforce the two explicitly supported missed-return cases even if a model is inconsistent.
                 if result.disruption_type == "missed" and result.affected_item == "return_bus":
                     if result.cause:

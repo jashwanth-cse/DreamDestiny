@@ -12,6 +12,27 @@ import urllib.parse
 from typing import List, Tuple, Dict, Any, Optional
 
 
+def split_whatsapp_text(body: str, limit: int = 4000) -> list[str]:
+    """Split long itineraries at line boundaries so links and markup stay intact."""
+    if not body:
+        return []
+    chunks, current = [], ""
+    for line in body.splitlines(keepends=True):
+        if current and len(current) + len(line) > limit:
+            chunks.append(current.rstrip("\n"))
+            current = ""
+        if len(line) > limit:
+            if current:
+                chunks.append(current.rstrip("\n"))
+                current = ""
+            chunks.extend(line[i:i + limit] for i in range(0, len(line), limit))
+        else:
+            current += line
+    if current:
+        chunks.append(current.rstrip("\n"))
+    return chunks
+
+
 def format_12hr_time(raw_time: Optional[str]) -> str:
     """
     Converts 24-hr time like '13:00' or '01:05' to 12-hr format with AM/PM like '1:00 PM' or '1:05 AM'.

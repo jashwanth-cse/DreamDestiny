@@ -53,6 +53,8 @@ class StateMachine:
                 draft.berth_preference = BerthPreference.any
         if slots.hotel_category:
             draft.hotel_category = slots.hotel_category
+        if slots.pace:
+            draft.pace = slots.pace
         if slots.interests:
             draft.interests = list(set(draft.interests + slots.interests))
 
