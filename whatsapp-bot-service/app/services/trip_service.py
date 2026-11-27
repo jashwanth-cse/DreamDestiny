@@ -13,7 +13,7 @@ from app.clients.planner_gateway import planner_gateway, PlannerGatewayError
 from app.storage.firestore_store import firestore_store
 from app.storage.redis_store import redis_store
 from app.whatsapp.client import whatsapp_client
-from app.whatsapp.messages import format_itinerary_message, build_text_message, build_review_list_message, build_document_message
+from app.whatsapp.messages import format_itinerary_message, build_text_message, build_button_message, build_review_list_message, build_document_message
 from app.services.pdf_generator import generate_itinerary_pdf, generate_itinerary_pdf_async
 
 logger = logging.getLogger(__name__)
@@ -171,6 +171,18 @@ class TripService:
 
         except PlannerGatewayError as exc:
             logger.error("Planner Gateway failed for %s: %s", wa_id, exc)
+            if exc.status_code == 409:
+                session.draft.transport_mode = None
+                session.draft.berth_preference = None
+                session.state = ConversationState.COLLECT_TRANSPORT
+                await redis_store.save_session(session)
+                await whatsapp_client.send_message_payload(build_button_message(
+                    recipient=wa_id,
+                    body_text="I couldn't verify seats for both bus journeys on these dates. Choose another transport mode, or tell me new dates.",
+                    buttons=[("btn_transport_train", "🚆 Train"),
+                             ("btn_transport_any", "🔄 Any mode")],
+                ))
+                return False
             session.state = ConversationState.CONFIRM_TRIP  # allow retry
             await redis_store.save_session(session)
             await whatsapp_client.send_message_payload(

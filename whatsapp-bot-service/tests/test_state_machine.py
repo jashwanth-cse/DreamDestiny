@@ -59,6 +59,25 @@ def test_state_machine_progressive_transitions():
     assert state8 == ConversationState.GENERATING
 
 
+def test_waitlisted_train_change_to_bus_persists_in_request():
+    session = UserSession(wa_id="919876543210", state=ConversationState.HANDLE_WAITLIST_RAC)
+    session.draft.origin = "Rajapalayam"
+    session.draft.destination = "Kochi"
+    session.draft.start_date = date(2026, 12, 15)
+    session.draft.end_date = date(2026, 12, 17)
+    session.draft.travelers = 1
+    session.draft.budget_level = BudgetLevel.medium
+    session.draft.hotel_category = HotelPref.any
+    session.draft.transport_mode = TransportPref.train
+    state, _ = StateMachine.transition(session,
+        ExtractedTripSlots(modification_intent="change_transport"))
+    assert state == ConversationState.COLLECT_TRANSPORT
+    state, _ = StateMachine.transition(session,
+        ExtractedTripSlots(transport_mode=TransportPref.bus))
+    assert session.draft.to_trip_request().preferences.transport.mode.value == "bus"
+    assert session.draft.berth_preference is None
+
+
 def test_state_machine_multi_slot_jump():
     """Verify that providing all slots at once jumps directly to CONFIRM_TRIP."""
     session = UserSession(wa_id="919876543210")

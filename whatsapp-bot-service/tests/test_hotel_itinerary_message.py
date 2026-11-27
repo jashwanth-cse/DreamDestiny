@@ -21,3 +21,13 @@ def test_hotel_price_balance_and_arrival_directions_are_visible():
     assert "AFTER ARRIVING IN THE CITY" in text
     assert "18 min by road" in text
     assert "https://www.google.com/maps/dir/" in text
+
+
+def test_sightseeing_has_directions_from_hotel_then_previous_stop():
+    itinerary = {"hotel": {"hotel_name": "Central Stay", "price_per_night": 2200},
+        "days": [{"day": 1, "activities": [
+            {"attraction_name": "Fort Kochi"}, {"attraction_name": "Mattancherry Palace"}]}]}
+    text = format_itinerary_message(itinerary, "Rajapalayam", "Kochi")
+    assert "From Central Stay:" in text
+    assert "From Fort Kochi:" in text
+    assert text.count("https://www.google.com/maps/dir/") == 2

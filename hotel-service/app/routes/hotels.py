@@ -9,6 +9,7 @@ Responsibilities:
 """
 
 import logging
+import sqlite3
 from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
@@ -90,7 +91,11 @@ async def get_hotels(
     # 2. Cache lookup
     # ------------------------------------------------------------------
     cache_key = make_cache_key(city, check_in, check_out, adults, children)
-    cached = None if fresh else get_cached(cache_key)
+    try:
+        cached = None if fresh else get_cached(cache_key)
+    except (sqlite3.Error, OSError) as exc:
+        logger.warning("Hotel cache read unavailable: %s", exc)
+        cached = None
 
     if cached is not None:
         logger.info("Cache HIT  → %s", cache_key)
@@ -132,7 +137,11 @@ async def get_hotels(
     # ------------------------------------------------------------------
     # 5. Persist to cache (only on success)
     # ------------------------------------------------------------------
-    set_cached(cache_key, response.model_dump())
-    logger.info("Stored in cache → %s  (%d hotels)", cache_key, len(hotels))
+    try:
+        set_cached(cache_key, response.model_dump())
+    except (sqlite3.Error, OSError) as exc:
+        logger.warning("Hotel cache write unavailable: %s", exc)
+    else:
+        logger.info("Stored in cache → %s  (%d hotels)", cache_key, len(hotels))
 
     return response

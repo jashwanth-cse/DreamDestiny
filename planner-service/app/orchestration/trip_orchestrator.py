@@ -125,7 +125,9 @@ class TripOrchestrator:
             
         data = (await self._hotels.get_hotels(city, check_in, check_out, adults, children, fresh=True)
                 if fresh else await self._hotels.get_hotels(city, check_in, check_out, adults, children))
-        self._cache_hotels.set(key, data)
+        # Empty results can mean a transient provider failure; retry next request.
+        if data:
+            self._cache_hotels.set(key, data)
         return data
 
     async def _get_buses(self, source: str, destination: str, date: str):
@@ -136,7 +138,8 @@ class TripOrchestrator:
             return cached
             
         data = await self._buses.get_buses(source, destination, date)
-        self._cache_buses.set(key, data)
+        if data:
+            self._cache_buses.set(key, data)
         return data
 
     async def _get_trains(self, source: str, destination: str, date: str):

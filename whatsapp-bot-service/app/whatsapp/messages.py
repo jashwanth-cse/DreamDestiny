@@ -306,6 +306,7 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
             lines.append(f"\n{day_header}")
 
             acts = day.get("activities") or day.get("schedule") or []
+            previous_stop = (hotel.get("hotel_name") or hotel.get("name")) if isinstance(hotel, dict) else None
             if not acts:
                 lines.append("  • _Free time for leisurely exploration, local dining, and shopping._")
             for act in acts:
@@ -326,6 +327,12 @@ def format_itinerary_message(itinerary: Dict[str, Any], origin: str, destination
 
                     lines.append(f"  • {time_prefix}*{name}*")
                     lines.append(f"    📍 Maps: {place_map_url}")
+                    if previous_stop:
+                        directions = "https://www.google.com/maps/dir/?" + urllib.parse.urlencode({
+                            "api": "1", "origin": f"{previous_stop}, {destination}",
+                            "destination": f"{name}, {destination}"})
+                        lines.append(f"    ➡️ From {previous_stop}: {directions}")
+                    previous_stop = name
                     if notes:
                         lines.append(f"    _{notes}_")
                     if cost and float(cost) > 0:

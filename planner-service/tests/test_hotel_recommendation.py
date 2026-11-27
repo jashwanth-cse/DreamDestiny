@@ -1,6 +1,8 @@
 import asyncio
 import importlib
 from datetime import date
+import pytest
+from fastapi import HTTPException
 
 from app.business.itinerary_validator import ItineraryValidator
 from app.clients.hotel_routes import RoadRoute
@@ -165,4 +167,42 @@ def test_plan_endpoint_fills_hotel_when_model_returns_null(monkeypatch):
         assert result.hotel.hotel_id == "central"
         assert result.hotel.price_per_night == 1400
         assert result.arrival_to_hotel.travel_minutes == 18
+    asyncio.run(run())
+
+
+def test_plan_rejects_bus_request_without_verified_seats(monkeypatch):
+    async def run():
+        module = importlib.import_module("app.api.routes.plan")
+        context = _context()
+        context.trip.preferences.transport.mode = "bus"
+        class Orchestrator:
+            async def build_context(self, _trip):
+                return context
+        monkeypatch.setattr(module, "_orchestrator", Orchestrator())
+        with pytest.raises(HTTPException) as error:
+            await module.plan(context.trip)
+        assert error.value.status_code == 409
+        assert "bus" in error.value.detail.lower()
+    asyncio.run(run())
+
+
+def test_plan_rejects_model_train_when_buses_exist(monkeypatch):
+    async def run():
+        module = importlib.import_module("app.api.routes.plan")
+        context = _context()
+        context.trip.preferences.transport.mode = "bus"
+        context.outbound_buses = [BusContext(operator_name="Coach", available_seats=3)]
+        context.return_buses = [BusContext(operator_name="Coach", available_seats=3)]
+        class Orchestrator:
+            async def build_context(self, _trip):
+                return context
+        class Agent:
+            async def plan(self, _context):
+                return _itinerary()  # train, despite bus preference
+        monkeypatch.setattr(module, "_orchestrator", Orchestrator())
+        monkeypatch.setattr(module, "_get_agent", lambda: Agent())
+        with pytest.raises(HTTPException) as error:
+            await module.plan(context.trip)
+        assert error.value.status_code == 503
+        assert "bus itinerary" in error.value.detail
     asyncio.run(run())

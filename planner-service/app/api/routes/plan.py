@@ -24,6 +24,7 @@ from app.clients.transport_client import BusClient, TrainClient
 from app.orchestration.trip_orchestrator import TripOrchestrator
 from app.schemas.itinerary import Itinerary
 from app.schemas.request import TripRequest
+from app.schemas.request import TransportPref
 from app.services.llm.llm_client import BedrockLLMClient
 from app.services.hotel_recommendation import HotelRecommendationService
 
@@ -108,6 +109,17 @@ async def plan(trip: TripRequest) -> PlanResponse:
             detail="Failed to assemble trip data. Please try again.",
         )
 
+    if trip.preferences.transport.mode == TransportPref.bus:
+        missing = [leg for leg, options in (("outbound", context.outbound_buses),
+                                           ("return", context.return_buses))
+                   if not any((bus.available_seats or 0) > 0 for bus in options)]
+        if missing:
+            raise HTTPException(status_code=409,
+                detail=f"No verified bus seats for the {', '.join(missing)} leg. Choose another transport mode or date.")
+    if not context.hotels:
+        raise HTTPException(status_code=503,
+            detail="Dated hotel prices are unavailable right now. Please retry this trip shortly.")
+
     # ── Step 2: Run planning agent ────────────────────────────────────────
     try:
         itinerary = await _get_agent().plan(context)
@@ -125,6 +137,16 @@ async def plan(trip: TripRequest) -> PlanResponse:
             status_code=500,
             detail="An unexpected error occurred during planning.",
         )
+
+    if trip.preferences.transport.mode == TransportPref.bus:
+        for leg, decision, options in (("outbound", itinerary.outbound_transport, context.outbound_buses),
+                                       ("return", itinerary.return_transport, context.return_buses)):
+            if (decision is None or decision.mode != "bus" or
+                    not any(bus.operator_name == decision.operator_name and
+                            (bus.available_seats or 0) > 0 for bus in options)):
+                logger.warning("Planner violated explicit bus preference for %s leg", leg)
+                raise HTTPException(status_code=503,
+                    detail="The planner could not verify a bus itinerary. Please retry or choose another mode.")
 
     # ── Step 3: Ground the hotel and arrival transfer in provider routes ──
     try:

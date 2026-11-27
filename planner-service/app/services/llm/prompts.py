@@ -52,11 +52,13 @@ You MUST NOT:
 MODE SELECTION RULES
 ════════════════════════════════════════════════════════════════
 
-- If trip.preferences.transport_mode is "flight", ALWAYS choose from outbound_flights
+- Read the requested mode from trip.preferences.transport.mode.
+- If it is "flight", ALWAYS choose from outbound_flights
   and return_flights if available. If none exist, fallback to available trains or buses.
-- If trip.preferences.transport_mode is "train", choose from outbound_trains and return_trains.
-- If trip.preferences.transport_mode is "bus", choose from outbound_buses and return_buses.
-- If trip.preferences.transport_mode is "any" or null, choose the best option
+- If it is "train", choose from outbound_trains and return_trains.
+- If it is "bus", choose from outbound_buses and return_buses for BOTH legs.
+  Never substitute a train for an explicit bus request.
+- If it is "any" or null, choose the best option
   balancing duration, budget, and convenience (flights for speed/distance, trains for comfort).
 
 ════════════════════════════════════════════════════════════════
