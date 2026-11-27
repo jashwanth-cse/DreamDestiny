@@ -200,7 +200,7 @@ Traditional travel planning is broken across 5+ disparate tabs: checking train a
 
 ## Trip Rescue in action
 
-These WhatsApp captures show two ways a saved Kochi trip can change. The rain response labels unverified times and prices, and the cancellation response offers train options to review. Prices shown are historical quotes.
+These WhatsApp captures show two ways a saved Kochi trip can change. The rain image is an annotated demo with published visitor details added after the chat. The [original WhatsApp capture](docs/images/trip-rescue-rain.png) shows the bot marking those details as unverified. The cancellation response shows train options and historical fare quotes.
 
 <table>
   <thead>
@@ -212,7 +212,7 @@ These WhatsApp captures show two ways a saved Kochi trip can change. The rain re
   <tbody>
     <tr>
       <td align="center" valign="top">
-        <a href="docs/images/trip-rescue-rain.png"><img src="docs/images/trip-rescue-rain.png" width="280" alt="WhatsApp Trip Rescue suggests indoor attractions after the traveller reports rain in Fort Kochi." /></a>
+        <a href="docs/images/trip-rescue-rain-annotated.png"><img src="docs/images/trip-rescue-rain-annotated.png" width="280" alt="Annotated WhatsApp demo showing published hours and admission for three indoor options after rain in Fort Kochi." /></a>
       </td>
       <td align="center" valign="top">
         <a href="docs/images/trip-rescue-cancellation.png"><img src="docs/images/trip-rescue-cancellation.png" width="280" alt="WhatsApp Trip Rescue offers train options to review after the traveller reports a cancelled flight to Kochi." /></a>
@@ -220,6 +220,19 @@ These WhatsApp captures show two ways a saved Kochi trip can change. The rain re
     </tr>
   </tbody>
 </table>
+
+<details>
+<summary>Fort Kochi rain demo sources</summary>
+
+| Attraction | Published hours (IST) | Published admission | Source |
+| --- | --- | --- | --- |
+| Mattancherry Palace | 10:00–17:00, closed Fridays | ₹5, free for children under 15 | [Kerala Tourism hours](https://www.keralatourism.org/destination/mattancherry-palace-kochi/178/) · [Ministry of Culture museum directory, entry 12.6](https://culture.gov.in/files/inline-documents/Directory_of_Indian_Museums_080620231.pdf) |
+| Indo-Portuguese Museum | 09:00–18:00, closed Mondays | ₹40 adult, ₹25 child | [Incredible India](https://www.incredibleindia.gov.in/en/kerala/kochi/indo-portugese-museum) |
+| Hill Palace Museum | 09:00–12:30 and 14:00–16:30, closed Mondays | ₹50 adult, ₹10 for ages 5–12 | [Kerala Tourism](https://www.keralatourism.org/destination/hill-palace-museum/182/) |
+
+Sources checked on 27 November 2026. DTPC Ernakulam publishes different [Indo-Portuguese Museum hours and fees](https://www.dtpcernakulam.com/destination/indo-portuguese-museum) and a different [Hill Palace admission fee](https://www.dtpcernakulam.com/destination/hill-palace-museum-thripunithura). Confirm hours and prices with the venue before visiting.
+
+</details>
 
 ---
 
